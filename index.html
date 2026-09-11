@@ -13,6 +13,7 @@ html, body, #root { height:100%; margin:0; }
   --paper:#F5F6F8; --panel:#FFFFFF; --ink:#1B2430; --muted:#5C6675; --faint:#98A1AD;
   --line:#E4E8ED; --grid:#EDEFF3; --weekend:#EEF0F3;
   --teal:#1F6F78; --teal-weak:#E7F0F1; --teal-line:#BFD8DA;
+  --today-bg:#E9F6EC; --holiday-bg:#FBEAEA; --star:#C9971A;
   font-family:'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color:var(--ink); background:var(--paper);
   height:100%; min-height:640px; display:flex; flex-direction:column;
@@ -77,6 +78,9 @@ html, body, #root { height:100%; margin:0; }
 .jf-crow .code { font-size:11px; color:var(--faint); }
 .jf-crow .rm { color:var(--faint); display:grid; place-items:center; width:18px; height:18px;
   border-radius:4px; }
+.jf-crow .jf-star { color:var(--faint); display:grid; place-items:center; width:20px; height:20px;
+  border-radius:4px; flex:none; }
+.jf-crow .jf-star:hover { background:#EEE4C8; color:var(--star); }
 .jf-crow.sel { background:var(--paper); }
 .jf-crow.sel:hover .rm { background:#E4E8ED; color:var(--ink); }
 .jf-check { width:16px; height:16px; border-radius:4px; border:1.5px solid var(--line); flex:none;
@@ -101,11 +105,14 @@ html, body, #root { height:100%; margin:0; }
 .jf-cell.out .dnum { color:var(--faint); }
 .jf-cell.wknd { background:var(--weekend); }
 .jf-cell.wknd.out { background:#F1F3F6; }
+.jf-cell.holiday { background:var(--holiday-bg); }
+.jf-cell.holiday.out { background:#FCF2F1; }
+.jf-cell.today { background:var(--today-bg); }
 .jf-cell .dnum { font-size:13px; color:var(--ink); font-weight:500; line-height:1;
   width:24px; height:22px; display:grid; place-items:center; border-radius:6px; }
 .jf-cell.today .dnum { background:var(--teal); color:#fff; }
-.jf-dots { display:flex; flex-wrap:wrap; gap:3px; align-content:flex-start; }
-.jf-dot { width:8px; height:8px; border-radius:50%; }
+.jf-dots { display:flex; flex-wrap:wrap; gap:4px; align-content:flex-start; }
+.jf-dot { width:11px; height:11px; border-radius:50%; box-shadow:0 0 0 1.5px rgba(255,255,255,.7); }
 .jf-more { font-size:10px; color:var(--muted); line-height:8px; }
 .jf-tag { font-size:11px; color:var(--muted); display:flex; align-items:center; gap:5px;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -172,9 +179,10 @@ html, body, #root { height:100%; margin:0; }
 .jf-mday:hover { background:var(--paper); }
 .jf-mday.empty { cursor:default; }
 .jf-mday.wknd { color:var(--faint); }
+.jf-mday.holiday { background:var(--holiday-bg); }
 .jf-mday.today { background:var(--teal); color:#fff; font-weight:600; }
-.jf-mday .mdots { display:flex; gap:1.5px; height:4px; }
-.jf-mday .mdot { width:4px; height:4px; border-radius:50%; }
+.jf-mday .mdots { display:flex; gap:2px; height:5px; }
+.jf-mday .mdot { width:5px; height:5px; border-radius:50%; }
 
 .jf-scrim { position:absolute; inset:0; background:rgba(27,36,48,.32); z-index:20; }
 .jf-drawer { position:absolute; top:0; right:0; height:100%; width:380px; max-width:90%;
@@ -241,6 +249,16 @@ const Search = ({size}) => <Svg size={size}><circle cx="11" cy="11" r="8"/><line
 const X = ({size}) => <Svg size={size}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></Svg>;
 const Globe = ({size}) => <Svg size={size}><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></Svg>;
 const CalendarDays = ({size}) => <Svg size={size}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></Svg>;
+function StarIcon({ size=14, filled }){
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24"
+      fill={filled ? 'var(--star)' : 'none'}
+      stroke={filled ? 'var(--star)' : 'currentColor'}
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2.5 15.1 8.9 22 9.9 17 14.9 18.2 22 12 18.6 5.8 22 7 14.9 2 9.9 8.9 8.9 12 2.5"/>
+    </svg>
+  );
+}
 
 /* ---- config & helpers ---- */
 const PALETTE = ['#2563EB','#DB2777','#059669','#D97706','#7C3AED','#0891B2','#DC2626',
@@ -297,6 +315,7 @@ function App(){
   const [countries, setCountries] = useState([]);
   const [cstatus, setCstatus]   = useState('loading');
   const [selected, setSelected] = useState([]);
+  const [favorites, setFavorites] = useState(new Set());
   const [view, setView]   = useState('month');
   const [focus, setFocus] = useState(new Date());
   const [query, setQuery] = useState('');
@@ -379,13 +398,27 @@ function App(){
       return [...s, { code:c.code, name:c.fr, color }];
     });
   };
+  const toggleFav = (code, e) => {
+    e.stopPropagation();
+    setFavorites(prev => {
+      const next = new Set(prev);
+      next.has(code) ? next.delete(code) : next.add(code);
+      return next;
+    });
+  };
+  const byFavFirst = (a, b) => {
+    const fa = favorites.has(a.code), fb = favorites.has(b.code);
+    return fa===fb ? 0 : fa ? -1 : 1;
+  };
 
   const filtered = useMemo(() => {
     const q = norm(query);
     const base = countries.filter(c => !isSel(c.code));
-    if(!q) return base;
-    return base.filter(c => norm(c.fr).includes(q) || norm(c.en).includes(q) || c.code.toLowerCase().includes(q));
-  }, [countries, query, selected]);
+    const matched = q ? base.filter(c => norm(c.fr).includes(q) || norm(c.en).includes(q) || c.code.toLowerCase().includes(q)) : base;
+    return [...matched].sort(byFavFirst);
+  }, [countries, query, selected, favorites]);
+
+  const selectedSorted = useMemo(() => [...selected].sort(byFavFirst), [selected, favorites]);
 
   const step = dir => {
     const d = new Date(focus);
@@ -460,11 +493,14 @@ function App(){
           )}
           <div className="jf-list">
             {selected.length>0 && <div className="jf-group">Sélectionnés</div>}
-            {selected.map(c => (
+            {selectedSorted.map(c => (
               <button key={c.code} className="jf-crow sel" onClick={()=>toggle({code:c.code})}>
                 <span className="swatch" style={{background:c.color}}/>
                 <Flag code={c.code}/>
                 <span className="cname">{c.name}</span>
+                <span className="jf-star" onClick={e=>toggleFav(c.code,e)} title="Favori">
+                  <StarIcon filled={favorites.has(c.code)}/>
+                </span>
                 <span className="rm"><X size={14}/></span>
               </button>
             ))}
@@ -474,6 +510,9 @@ function App(){
                 <span className="jf-check"/>
                 <Flag code={c.code}/>
                 <span className="cname">{c.fr}</span>
+                <span className="jf-star" onClick={e=>toggleFav(c.code,e)} title="Favori">
+                  <StarIcon filled={favorites.has(c.code)}/>
+                </span>
                 <span className="code mono">{c.code}</span>
               </button>
             ))}
@@ -544,7 +583,7 @@ function MonthView({ focus, index, onDay }){
         {cells.map((d,i) => {
           const hits = index[ymd(d)] || [];
           const out = d.getMonth()!==month;
-          const cls = ['jf-cell', out?'out':'', isWknd(d)?'wknd':'', sameDay(d,today)?'today':''].join(' ');
+          const cls = ['jf-cell', out?'out':'', isWknd(d)?'wknd':'', hits.length>0?'holiday':'', sameDay(d,today)?'today':''].join(' ');
           return (
             <button key={i} className={cls} onClick={()=>onDay(d)}>
               <span className="dnum">{d.getDate()}</span>
@@ -651,7 +690,7 @@ function YearView({ focus, index, onDay }){
               {cells.map((d,i) => {
                 if(!d) return <span key={i} className="jf-mday empty"/>;
                 const hits = index[ymd(d)] || [];
-                const cls = ['jf-mday', isWknd(d)?'wknd':'', sameDay(d,today)?'today':''].join(' ');
+                const cls = ['jf-mday', isWknd(d)?'wknd':'', hits.length>0?'holiday':'', sameDay(d,today)?'today':''].join(' ');
                 return (
                   <button key={i} className={cls} onClick={()=>onDay(d)}>
                     <span>{d.getDate()}</span>
