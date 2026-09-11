@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jours fériés dans le monde</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+html, body, #root { height:100%; margin:0; }
+.jf, .jf * { box-sizing: border-box; }
+.jf {
+  --paper:#F5F6F8; --panel:#FFFFFF; --ink:#1B2430; --muted:#5C6675; --faint:#98A1AD;
+  --line:#E4E8ED; --grid:#EDEFF3; --weekend:#EEF0F3;
+  --teal:#1F6F78; --teal-weak:#E7F0F1; --teal-line:#BFD8DA;
+  font-family:'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color:var(--ink); background:var(--paper);
+  height:100%; min-height:640px; display:flex; flex-direction:column;
+  -webkit-font-smoothing:antialiased;
+}
+.jf .mono { font-family:'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace; }
+
+.jf-top { display:flex; align-items:center; gap:18px; padding:14px 20px;
+  background:var(--panel); border-bottom:1px solid var(--line); flex-wrap:wrap; }
+.jf-brand { display:flex; align-items:center; gap:10px; margin-right:auto; }
+.jf-brand .mark { width:30px; height:30px; border-radius:7px; background:var(--teal);
+  color:#fff; display:grid; place-items:center; }
+.jf-brand h1 { font-size:15px; font-weight:600; margin:0; letter-spacing:-0.01em; }
+.jf-brand p { font-size:11.5px; color:var(--muted); margin:1px 0 0; }
+
+.jf-seg { display:inline-flex; background:var(--paper); border:1px solid var(--line);
+  border-radius:8px; padding:2px; }
+.jf-seg button { border:0; background:transparent; font:inherit; font-size:13px; color:var(--muted);
+  padding:6px 13px; border-radius:6px; cursor:pointer; transition:background .15s,color .15s; }
+.jf-seg button:hover { color:var(--ink); }
+.jf-seg button[aria-pressed="true"] { background:var(--panel); color:var(--ink); font-weight:500;
+  box-shadow:0 1px 2px rgba(27,36,48,.08); }
+
+.jf-nav { display:flex; align-items:center; gap:6px; }
+.jf-nav .period { font-size:14px; font-weight:600; min-width:190px; text-align:center;
+  letter-spacing:-0.01em; }
+.jf-ico { width:32px; height:32px; border-radius:7px; border:1px solid var(--line);
+  background:var(--panel); color:var(--ink); display:grid; place-items:center; cursor:pointer;
+  transition:background .15s,border-color .15s; }
+.jf-ico:hover { background:var(--paper); border-color:#D3D9E0; }
+.jf-today { font:inherit; font-size:13px; padding:7px 13px; border-radius:7px;
+  border:1px solid var(--teal-line); background:var(--teal-weak); color:var(--teal);
+  font-weight:500; cursor:pointer; }
+.jf-today:hover { background:#DBE9EA; }
+.jf-railtoggle { display:none; font:inherit; font-size:13px; padding:7px 12px; border-radius:7px;
+  border:1px solid var(--line); background:var(--panel); cursor:pointer; align-items:center; gap:6px; }
+
+.jf-body { display:flex; flex:1; min-height:0; position:relative; }
+.jf-rail { width:270px; flex:none; background:var(--panel); border-right:1px solid var(--line);
+  display:flex; flex-direction:column; min-height:0; }
+.jf-rail h2 { font-size:12px; font-weight:600; color:var(--ink);
+  margin:0; padding:16px 16px 10px; display:flex; align-items:center; justify-content:space-between; }
+.jf-rail h2 .count { color:var(--faint); font-weight:500; }
+.jf-search { position:relative; padding:0 16px 10px; }
+.jf-search input { width:100%; font:inherit; font-size:13px; padding:8px 10px 8px 32px;
+  border:1px solid var(--line); border-radius:8px; background:var(--paper); color:var(--ink); }
+.jf-search input::placeholder { color:var(--faint); }
+.jf-search svg { position:absolute; left:26px; top:9px; color:var(--faint); }
+
+.jf-group { font-size:11px; color:var(--faint); padding:8px 16px 4px; letter-spacing:0.02em; }
+.jf-list { overflow-y:auto; flex:1; padding-bottom:12px; }
+.jf-crow { width:100%; display:flex; align-items:center; gap:10px; padding:7px 16px; border:0;
+  background:transparent; font:inherit; cursor:pointer; text-align:left; color:var(--ink);
+  transition:background .12s; }
+.jf-crow:hover { background:var(--paper); }
+.jf-crow .swatch { width:9px; height:9px; border-radius:2px; flex:none; }
+.jf-crow .flag { width:22px; height:16px; border-radius:2px; object-fit:cover; flex:none;
+  box-shadow:inset 0 0 0 1px rgba(27,36,48,.10); background:var(--grid); }
+.jf-crow .flag-fb { width:22px; height:16px; border-radius:2px; flex:none; display:grid;
+  place-items:center; font-size:9px; background:var(--grid); color:var(--muted); }
+.jf-crow .cname { flex:1; font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.jf-crow .code { font-size:11px; color:var(--faint); }
+.jf-crow .rm { color:var(--faint); display:grid; place-items:center; width:18px; height:18px;
+  border-radius:4px; }
+.jf-crow.sel { background:var(--paper); }
+.jf-crow.sel:hover .rm { background:#E4E8ED; color:var(--ink); }
+.jf-check { width:16px; height:16px; border-radius:4px; border:1.5px solid var(--line); flex:none;
+  display:grid; place-items:center; }
+.jf-check.on { background:var(--teal); border-color:var(--teal); color:#fff; }
+.jf-railnote { font-size:11px; color:var(--faint); padding:10px 16px; border-top:1px solid var(--line);
+  line-height:1.5; }
+.jf-railnote b { color:var(--muted); font-weight:500; }
+
+.jf-main { flex:1; min-width:0; overflow:auto; padding:16px 20px 22px; }
+
+.jf-dow { display:grid; grid-template-columns:repeat(7,1fr); gap:1px; margin-bottom:6px; }
+.jf-dow span { font-size:11px; color:var(--muted); text-align:left; padding:0 6px; font-weight:500; }
+.jf-month { display:grid; grid-template-columns:repeat(7,1fr); grid-auto-rows:1fr;
+  gap:1px; background:var(--grid); border:1px solid var(--grid); border-radius:8px; overflow:hidden;
+  min-height:520px; }
+.jf-cell { background:var(--panel); border:0; font:inherit; text-align:left; cursor:pointer;
+  padding:7px 8px; display:flex; flex-direction:column; gap:6px; min-height:80px; position:relative;
+  transition:background .12s; }
+.jf-cell:hover { background:var(--paper); }
+.jf-cell.out { background:#FAFBFC; }
+.jf-cell.out .dnum { color:var(--faint); }
+.jf-cell.wknd { background:var(--weekend); }
+.jf-cell.wknd.out { background:#F1F3F6; }
+.jf-cell .dnum { font-size:13px; color:var(--ink); font-weight:500; line-height:1;
+  width:24px; height:22px; display:grid; place-items:center; border-radius:6px; }
+.jf-cell.today .dnum { background:var(--teal); color:#fff; }
+.jf-dots { display:flex; flex-wrap:wrap; gap:3px; align-content:flex-start; }
+.jf-dot { width:8px; height:8px; border-radius:50%; }
+.jf-more { font-size:10px; color:var(--muted); line-height:8px; }
+.jf-tag { font-size:11px; color:var(--muted); display:flex; align-items:center; gap:5px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.jf-tag .d { width:7px; height:7px; border-radius:50%; flex:none; }
+
+.jf-week { display:grid; grid-template-columns:repeat(7,1fr); gap:1px; background:var(--grid);
+  border:1px solid var(--grid); border-radius:8px; overflow:hidden; min-height:520px; }
+.jf-wcol { background:var(--panel); display:flex; flex-direction:column; min-height:0; }
+.jf-wcol.wknd { background:var(--weekend); }
+.jf-whead { padding:9px 10px; border-bottom:1px solid var(--grid); cursor:pointer; }
+.jf-whead:hover { background:var(--paper); }
+.jf-whead .dow { font-size:11px; color:var(--muted); }
+.jf-whead .dn { font-size:16px; font-weight:600; }
+.jf-whead .dn.today { color:var(--teal); }
+.jf-wbody { padding:8px; display:flex; flex-direction:column; gap:6px; overflow-y:auto; }
+.jf-bar { border:0; font:inherit; text-align:left; cursor:pointer; background:var(--paper);
+  border-left:3px solid; border-radius:5px; padding:6px 8px; display:flex; gap:7px; align-items:center; }
+.jf-bar:hover { background:#EDF0F3; }
+.jf-bar .flag { width:18px; height:13px; border-radius:2px; object-fit:cover; flex:none;
+  box-shadow:inset 0 0 0 1px rgba(27,36,48,.10); }
+.jf-bar .flag-fb { width:18px; height:13px; border-radius:2px; flex:none; display:grid;
+  place-items:center; font-size:8px; background:var(--grid); color:var(--muted); }
+.jf-bar .bn { font-size:12px; line-height:1.25; overflow:hidden; }
+.jf-bar .bn b { font-weight:500; display:block; }
+.jf-bar .bn span { color:var(--muted); font-size:11px; }
+
+.jf-day { max-width:720px; }
+.jf-verdict { background:var(--panel); border:1px solid var(--line); border-radius:12px;
+  padding:18px 20px; margin-bottom:16px; }
+.jf-verdict .big { font-size:15px; font-weight:600; }
+.jf-verdict .sub { font-size:13px; color:var(--muted); margin-top:3px; }
+.jf-verdict .wk { display:inline-block; margin-left:8px; font-size:11px; color:var(--muted);
+  background:var(--weekend); padding:2px 8px; border-radius:20px; vertical-align:middle; }
+.jf-daysec { margin-top:14px; }
+.jf-daysec .lbl { font-size:12px; color:var(--faint); margin-bottom:8px; }
+.jf-hcard { display:flex; gap:12px; padding:12px 14px; background:var(--panel);
+  border:1px solid var(--line); border-radius:10px; margin-bottom:8px; align-items:flex-start; }
+.jf-hcard .flag { width:26px; height:19px; border-radius:3px; object-fit:cover; flex:none;
+  box-shadow:inset 0 0 0 1px rgba(27,36,48,.10); }
+.jf-hcard .flag-fb { width:26px; height:19px; border-radius:3px; flex:none; display:grid;
+  place-items:center; font-size:10px; background:var(--grid); color:var(--muted); }
+.jf-hcard .co { font-size:12px; color:var(--muted); }
+.jf-hcard .nm { font-size:14px; font-weight:500; }
+.jf-hcard .en { font-size:12px; color:var(--muted); }
+.jf-badge { font-size:10.5px; padding:2px 7px; border-radius:20px; margin-left:6px;
+  background:var(--teal-weak); color:var(--teal); vertical-align:middle; }
+.jf-badge.reg { background:#F4EEE2; color:#8A6D2F; }
+.jf-chips { display:flex; flex-wrap:wrap; gap:7px; }
+.jf-chip { display:flex; align-items:center; gap:7px; padding:5px 10px; border-radius:20px;
+  background:var(--panel); border:1px solid var(--line); font-size:12.5px; }
+.jf-chip .flag { width:18px; height:13px; border-radius:2px; object-fit:cover;
+  box-shadow:inset 0 0 0 1px rgba(27,36,48,.10); }
+.jf-chip .flag-fb { width:18px; height:13px; border-radius:2px; display:grid; place-items:center;
+  font-size:8px; background:var(--grid); color:var(--muted); }
+
+.jf-year { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+.jf-mini { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; }
+.jf-mini .mtitle { font-size:12.5px; font-weight:600; margin-bottom:8px; }
+.jf-mgrid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+.jf-mgrid .h { font-size:9px; color:var(--faint); text-align:center; padding-bottom:2px; }
+.jf-mday { aspect-ratio:1; border:0; background:transparent; font:inherit; font-size:11px;
+  color:var(--ink); cursor:pointer; border-radius:5px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:1px; padding:0; position:relative; }
+.jf-mday:hover { background:var(--paper); }
+.jf-mday.empty { cursor:default; }
+.jf-mday.wknd { color:var(--faint); }
+.jf-mday.today { background:var(--teal); color:#fff; font-weight:600; }
+.jf-mday .mdots { display:flex; gap:1.5px; height:4px; }
+.jf-mday .mdot { width:4px; height:4px; border-radius:50%; }
+
+.jf-scrim { position:absolute; inset:0; background:rgba(27,36,48,.32); z-index:20; }
+.jf-drawer { position:absolute; top:0; right:0; height:100%; width:380px; max-width:90%;
+  background:var(--panel); border-left:1px solid var(--line); z-index:21; display:flex;
+  flex-direction:column; box-shadow:-8px 0 24px rgba(27,36,48,.10); animation:jf-slide .22s ease; }
+@keyframes jf-slide { from { transform:translateX(30px); opacity:.4; } to { transform:none; opacity:1; } }
+.jf-dhead { padding:18px 20px; border-bottom:1px solid var(--line); display:flex;
+  align-items:flex-start; justify-content:space-between; }
+.jf-dhead .dt { font-size:15px; font-weight:600; text-transform:capitalize; }
+.jf-dhead .vd { font-size:12.5px; color:var(--muted); margin-top:3px; }
+.jf-dbody { overflow-y:auto; padding:16px 20px; flex:1; }
+.jf-dlink { font:inherit; font-size:13px; color:var(--teal); background:transparent; border:0;
+  cursor:pointer; padding:0; margin-top:4px; }
+.jf-dlink:hover { text-decoration:underline; }
+
+.jf-empty { display:grid; place-items:center; height:100%; text-align:center; color:var(--muted); }
+.jf-empty .ic { width:44px; height:44px; border-radius:12px; background:var(--panel);
+  border:1px solid var(--line); display:grid; place-items:center; margin:0 auto 14px; }
+.jf-empty p { font-size:14px; max-width:280px; line-height:1.5; }
+.jf-banner { background:#FBEEE9; border:1px solid #EBC9BC; color:#8A3B1E; font-size:12.5px;
+  padding:9px 14px; border-radius:8px; margin-bottom:14px; display:flex; align-items:center;
+  justify-content:space-between; gap:12px; }
+.jf-banner button { font:inherit; font-size:12.5px; color:#8A3B1E; background:transparent;
+  border:1px solid #D9AE9E; border-radius:6px; padding:3px 10px; cursor:pointer; font-weight:500; }
+
+.jf button:focus-visible, .jf input:focus-visible, .jf-cell:focus-visible, .jf-mday:focus-visible {
+  outline:2px solid var(--teal); outline-offset:1px; }
+
+@media (max-width:860px){
+  .jf-rail { position:absolute; top:0; left:0; height:100%; z-index:30; transform:translateX(-100%);
+    transition:transform .22s ease; box-shadow:8px 0 24px rgba(27,36,48,.12); }
+  .jf-rail.open { transform:none; }
+  .jf-railtoggle { display:inline-flex; }
+  .jf-year { grid-template-columns:repeat(2,1fr); }
+  .jf-brand p { display:none; }
+}
+@media (max-width:520px){
+  .jf-year { grid-template-columns:1fr; }
+  .jf-nav .period { min-width:120px; font-size:13px; }
+}
+@media (prefers-reduced-motion: reduce){
+  .jf *, .jf-drawer, .jf-rail { animation:none !important; transition:none !important; }
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useRef } = React;
+
+/* ---- inline icons (lucide paths) ---- */
+function Svg({ size=18, children }){
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{children}</svg>;
+}
+const ChevronLeft  = ({size}) => <Svg size={size}><polyline points="15 18 9 12 15 6"/></Svg>;
+const ChevronRight = ({size}) => <Svg size={size}><polyline points="9 18 15 12 9 6"/></Svg>;
+const Search = ({size}) => <Svg size={size}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></Svg>;
+const X = ({size}) => <Svg size={size}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></Svg>;
+const Globe = ({size}) => <Svg size={size}><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></Svg>;
+const CalendarDays = ({size}) => <Svg size={size}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></Svg>;
+
+/* ---- config & helpers ---- */
+const PALETTE = ['#2563EB','#DB2777','#059669','#D97706','#7C3AED','#0891B2','#DC2626',
+  '#4F46E5','#CA8A04','#0D9488','#C026D3','#EA580C','#65A30D','#9333EA'];
+
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+const startOfWeek = d => addDays(d, -((d.getDay()+6)%7));
+const sameDay = (a, b) => ymd(a) === ymd(b);
+const cap = s => s ? s.charAt(0).toUpperCase()+s.slice(1) : s;
+const norm = s => (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const isWknd = d => d.getDay()===0 || d.getDay()===6;
+
+let regionNames = null;
+try { regionNames = new Intl.DisplayNames(['fr'], { type:'region' }); } catch (e) {}
+const frName = (code, fb) => { try { return (regionNames && regionNames.of(code)) || fb; } catch (e) { return fb; } };
+
+const fmt = (d, o) => new Intl.DateTimeFormat('fr-FR', o).format(d);
+const DOW = ['lun.','mar.','mer.','jeu.','ven.','sam.','dim.'];
+const DOW1 = ['L','M','M','J','V','S','D'];
+
+function monthGrid(focus){
+  const first = new Date(focus.getFullYear(), focus.getMonth(), 1);
+  const start = startOfWeek(first);
+  return Array.from({length:42}, (_, i) => addDays(start, i));
+}
+function miniMatrix(year, month){
+  const first = new Date(year, month, 1);
+  const off = (first.getDay()+6)%7;
+  const days = new Date(year, month+1, 0).getDate();
+  const cells = Array(off).fill(null);
+  for (let d=1; d<=days; d++) cells.push(new Date(year, month, d));
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+}
+function visibleYears(view, focus){
+  const ys = new Set();
+  if (view==='day')  ys.add(focus.getFullYear());
+  if (view==='week'){ const s=startOfWeek(focus); ys.add(s.getFullYear()); ys.add(addDays(s,6).getFullYear()); }
+  if (view==='month'){ const g=monthGrid(focus); ys.add(g[0].getFullYear()); ys.add(g[41].getFullYear()); }
+  if (view==='year') ys.add(focus.getFullYear());
+  return [...ys];
+}
+
+function Flag({ code, cls='flag' }){
+  const [broken, setBroken] = useState(false);
+  if (broken) return <span className={cls+'-fb mono'}>{code}</span>;
+  return <img className={cls} alt="" loading="lazy"
+    src={`https://flagcdn.com/${code.toLowerCase()}.svg`} onError={()=>setBroken(true)} />;
+}
+
+function App(){
+  const [countries, setCountries] = useState([]);
+  const [cstatus, setCstatus]   = useState('loading');
+  const [selected, setSelected] = useState([]);
+  const [view, setView]   = useState('month');
+  const [focus, setFocus] = useState(new Date());
+  const [query, setQuery] = useState('');
+  const [drawer, setDrawer] = useState(null);
+  const [railOpen, setRailOpen] = useState(false);
+  const [netError, setNetError] = useState(false);
+  const [refresh, setRefresh] = useState(0);
+
+  const cacheRef = useRef({});
+  const [cache, setCache] = useState({});
+  const didInit = useRef(false);
+
+  useEffect(() => {
+    let alive = true;
+    fetch('https://date.nager.at/api/v3/AvailableCountries')
+      .then(r => { if(!r.ok) throw new Error(); return r.json(); })
+      .then(list => {
+        if(!alive) return;
+        const mapped = list.map(c => ({ code:c.countryCode, en:c.name, fr:frName(c.countryCode, c.name) }))
+                           .sort((a,b) => a.fr.localeCompare(b.fr,'fr'));
+        setCountries(mapped); setCstatus('ready');
+      })
+      .catch(() => alive && setCstatus('error'));
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    if (didInit.current || cstatus!=='ready') return;
+    didInit.current = true;
+    const wanted = ['FR','DE','US','JP'];
+    const init = [];
+    wanted.forEach(code => {
+      const c = countries.find(x => x.code===code);
+      if (c) init.push({ code, name:c.fr, color:PALETTE[init.length] });
+    });
+    setSelected(init);
+  }, [cstatus, countries]);
+
+  useEffect(() => {
+    const years = visibleYears(view, focus);
+    selected.forEach(c => years.forEach(async y => {
+      const key = `${c.code}:${y}`;
+      if (cacheRef.current[key] && cacheRef.current[key] !== 'error') return;
+      cacheRef.current[key] = 'loading';
+      try {
+        const r = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${y}/${c.code}`);
+        if(!r.ok) throw new Error();
+        const data = await r.json();
+        cacheRef.current[key] = 'done';
+        setCache(prev => ({ ...prev, [key]: data }));
+      } catch (e) {
+        cacheRef.current[key] = 'error';
+        setNetError(true);
+      }
+    }));
+  }, [selected, view, focus, refresh]);
+
+  const index = useMemo(() => {
+    const byCode = Object.fromEntries(selected.map(c => [c.code, c]));
+    const idx = {};
+    for (const key of Object.keys(cache)){
+      const list = cache[key]; if(!Array.isArray(list)) continue;
+      const c = byCode[key.split(':')[0]]; if(!c) continue;
+      for (const h of list){
+        if (!idx[h.date]) idx[h.date] = [];
+        idx[h.date].push({ code:c.code, name:c.name, color:c.color, h });
+      }
+    }
+    const rank = Object.fromEntries(selected.map((c,i)=>[c.code,i]));
+    for (const k of Object.keys(idx)) idx[k].sort((a,b)=>rank[a.code]-rank[b.code]);
+    return idx;
+  }, [cache, selected]);
+
+  const isSel = code => selected.some(c => c.code===code);
+  const toggle = c => {
+    if (isSel(c.code)) { setSelected(s => s.filter(x => x.code!==c.code)); return; }
+    setSelected(s => {
+      const used = new Set(s.map(x => x.color));
+      const color = PALETTE.find(p => !used.has(p)) || PALETTE[s.length % PALETTE.length];
+      return [...s, { code:c.code, name:c.fr, color }];
+    });
+  };
+
+  const filtered = useMemo(() => {
+    const q = norm(query);
+    const base = countries.filter(c => !isSel(c.code));
+    if(!q) return base;
+    return base.filter(c => norm(c.fr).includes(q) || norm(c.en).includes(q) || c.code.toLowerCase().includes(q));
+  }, [countries, query, selected]);
+
+  const step = dir => {
+    const d = new Date(focus);
+    if (view==='day')   d.setDate(d.getDate()+dir);
+    if (view==='week')  d.setDate(d.getDate()+7*dir);
+    if (view==='month') { d.setDate(1); d.setMonth(d.getMonth()+dir); }
+    if (view==='year')  d.setFullYear(d.getFullYear()+dir);
+    setFocus(d);
+  };
+  const periodLabel = () => {
+    if (view==='day')  return cap(fmt(focus, {weekday:'long', day:'numeric', month:'long', year:'numeric'}));
+    if (view==='week'){
+      const s = startOfWeek(focus), e = addDays(s,6);
+      try { return new Intl.DateTimeFormat('fr-FR',{day:'numeric',month:'short',year:'numeric'}).formatRange(s,e); }
+      catch (err) { return `${fmt(s,{day:'numeric',month:'short'})} – ${fmt(e,{day:'numeric',month:'short',year:'numeric'})}`; }
+    }
+    if (view==='month') return cap(fmt(focus, {month:'long', year:'numeric'}));
+    return String(focus.getFullYear());
+  };
+
+  const openDay = d => setDrawer(new Date(d));
+  useEffect(() => {
+    const h = e => { if(e.key==='Escape'){ setDrawer(null); setRailOpen(false); } };
+    window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h);
+  }, []);
+
+  const retry = () => {
+    Object.keys(cacheRef.current).forEach(k => { if(cacheRef.current[k]==='error') delete cacheRef.current[k]; });
+    setNetError(false); setRefresh(x => x+1);
+    if (cstatus==='error') setCstatus('loading');
+  };
+
+  return (
+    <div className="jf">
+      <div className="jf-top">
+        <div className="jf-brand">
+          <span className="mark"><Globe size={17}/></span>
+          <div>
+            <h1>Jours fériés dans le monde</h1>
+            <p>Planification multi-pays</p>
+          </div>
+        </div>
+        <button className="jf-railtoggle" onClick={()=>setRailOpen(o=>!o)}>
+          <CalendarDays size={15}/> Pays ({selected.length})
+        </button>
+        <div className="jf-seg" role="group" aria-label="Vue">
+          {[['day','Jour'],['week','Semaine'],['month','Mois'],['year','Année']].map(([v,l]) => (
+            <button key={v} aria-pressed={view===v} onClick={()=>setView(v)}>{l}</button>
+          ))}
+        </div>
+        <div className="jf-nav">
+          <button className="jf-ico" aria-label="Précédent" onClick={()=>step(-1)}><ChevronLeft size={18}/></button>
+          <span className="period">{periodLabel()}</span>
+          <button className="jf-ico" aria-label="Suivant" onClick={()=>step(1)}><ChevronRight size={18}/></button>
+          <button className="jf-today" onClick={()=>setFocus(new Date())}>Aujourd’hui</button>
+        </div>
+      </div>
+
+      <div className="jf-body">
+        {railOpen && <div className="jf-scrim" onClick={()=>setRailOpen(false)} style={{zIndex:29}}/>}
+
+        <aside className={'jf-rail'+(railOpen?' open':'')}>
+          <h2>Pays affichés <span className="count">{selected.length}</span></h2>
+          <div className="jf-search">
+            <Search size={15}/>
+            <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Rechercher un pays…" />
+          </div>
+          {cstatus==='loading' && <div className="jf-group">Chargement des pays…</div>}
+          {cstatus==='error' && (
+            <div className="jf-railnote">Impossible de charger la liste des pays.
+              <br/><button className="jf-dlink" onClick={retry}>Réessayer</button></div>
+          )}
+          <div className="jf-list">
+            {selected.length>0 && <div className="jf-group">Sélectionnés</div>}
+            {selected.map(c => (
+              <button key={c.code} className="jf-crow sel" onClick={()=>toggle({code:c.code})}>
+                <span className="swatch" style={{background:c.color}}/>
+                <Flag code={c.code}/>
+                <span className="cname">{c.name}</span>
+                <span className="rm"><X size={14}/></span>
+              </button>
+            ))}
+            {cstatus==='ready' && <div className="jf-group">Tous les pays</div>}
+            {filtered.map(c => (
+              <button key={c.code} className="jf-crow" onClick={()=>toggle(c)}>
+                <span className="jf-check"/>
+                <Flag code={c.code}/>
+                <span className="cname">{c.fr}</span>
+                <span className="code mono">{c.code}</span>
+              </button>
+            ))}
+            {cstatus==='ready' && filtered.length===0 && query &&
+              <div className="jf-group">Aucun résultat pour « {query} ».</div>}
+          </div>
+          <div className="jf-railnote">
+            Week-ends grisés (<b>sam.–dim.</b>). Certains pays observent d’autres jours de repos.<br/>
+            Données : <b>Nager.Date</b>.
+          </div>
+        </aside>
+
+        <main className="jf-main">
+          {netError && (
+            <div className="jf-banner">
+              <span>Certaines données n’ont pas pu être chargées (réseau).</span>
+              <button onClick={retry}>Réessayer</button>
+            </div>
+          )}
+          {selected.length===0 ? (
+            <div className="jf-empty">
+              <div>
+                <div className="ic"><CalendarDays size={22}/></div>
+                <p>Sélectionnez un ou plusieurs pays dans le panneau de gauche pour afficher leurs jours fériés.</p>
+              </div>
+            </div>
+          ) : view==='month' ? (
+            <MonthView focus={focus} index={index} onDay={openDay}/>
+          ) : view==='week' ? (
+            <WeekView focus={focus} index={index} onDay={openDay}/>
+          ) : view==='year' ? (
+            <YearView focus={focus} index={index} onDay={openDay}/>
+          ) : (
+            <DayView focus={focus} index={index} selected={selected}/>
+          )}
+        </main>
+
+        {drawer && (
+          <>
+            <div className="jf-scrim" onClick={()=>setDrawer(null)}/>
+            <Drawer date={drawer} index={index} selected={selected}
+              onClose={()=>setDrawer(null)}
+              onGoDay={()=>{ setFocus(new Date(drawer)); setView('day'); setDrawer(null); }}/>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function verdict(date, index, selected){
+  const hits = index[ymd(date)] || [];
+  const offCodes = new Set(hits.map(x => x.code));
+  const off = selected.filter(c => offCodes.has(c.code));
+  const working = selected.filter(c => !offCodes.has(c.code));
+  return { hits, off, working, total: selected.length };
+}
+const plural = (n, w) => `${n} ${w}${n>1?'s':''}`;
+
+function MonthView({ focus, index, onDay }){
+  const cells = monthGrid(focus);
+  const month = focus.getMonth();
+  const today = new Date();
+  return (
+    <>
+      <div className="jf-dow">{DOW.map(d => <span key={d}>{d}</span>)}</div>
+      <div className="jf-month">
+        {cells.map((d,i) => {
+          const hits = index[ymd(d)] || [];
+          const out = d.getMonth()!==month;
+          const cls = ['jf-cell', out?'out':'', isWknd(d)?'wknd':'', sameDay(d,today)?'today':''].join(' ');
+          return (
+            <button key={i} className={cls} onClick={()=>onDay(d)}>
+              <span className="dnum">{d.getDate()}</span>
+              {hits.length>0 && (
+                <div className="jf-dots">
+                  {hits.slice(0,5).map((x,j) => <span key={j} className="jf-dot" style={{background:x.color}}/>)}
+                  {hits.length>5 && <span className="jf-more">+{hits.length-5}</span>}
+                </div>
+              )}
+              {hits.length===1 && <span className="jf-tag"><span className="d" style={{background:hits[0].color}}/>{hits[0].h.localName}</span>}
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+function WeekView({ focus, index, onDay }){
+  const start = startOfWeek(focus);
+  const days = Array.from({length:7}, (_,i) => addDays(start,i));
+  const today = new Date();
+  return (
+    <div className="jf-week">
+      {days.map((d,i) => {
+        const hits = index[ymd(d)] || [];
+        return (
+          <div key={i} className={'jf-wcol'+(isWknd(d)?' wknd':'')}>
+            <div className="jf-whead" onClick={()=>onDay(d)}>
+              <div className="dow">{DOW[i]}</div>
+              <div className={'dn'+(sameDay(d,today)?' today':'')}>{d.getDate()}</div>
+            </div>
+            <div className="jf-wbody">
+              {hits.map((x,j) => (
+                <button key={j} className="jf-bar" style={{borderLeftColor:x.color}} onClick={()=>onDay(d)}>
+                  <Flag code={x.code}/>
+                  <span className="bn"><b>{x.name}</b><span>{x.h.localName}</span></span>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function DayView({ focus, index, selected }){
+  const { hits, off, working, total } = verdict(focus, index, selected);
+  return (
+    <div className="jf-day">
+      <div className="jf-verdict">
+        <div className="big">
+          {off.length===0
+            ? `Aucun pays férié — ${plural(total,'pays')} ouvré${total>1?'s':''}.`
+            : `${plural(off.length,'pays')} férié${off.length>1?'s':''} sur ${total} affiché${total>1?'s':''}.`}
+          {isWknd(focus) && <span className="wk">week-end</span>}
+        </div>
+        <div className="sub">{cap(fmt(focus, {weekday:'long', day:'numeric', month:'long', year:'numeric'}))}</div>
+      </div>
+      {off.length>0 && (
+        <div className="jf-daysec">
+          <div className="lbl">Fériés</div>
+          {hits.map((x,i) => (
+            <div key={i} className="jf-hcard">
+              <Flag code={x.code}/>
+              <div>
+                <div className="co">{x.name}</div>
+                <div className="nm">{x.h.localName}
+                  {x.h.global ? <span className="jf-badge">National</span> : <span className="jf-badge reg">Régional</span>}
+                </div>
+                {x.h.name && x.h.name!==x.h.localName && <div className="en">{x.h.name}</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {working.length>0 && (
+        <div className="jf-daysec">
+          <div className="lbl">Ouvrés {isWknd(focus) && '(hors week-end éventuel)'}</div>
+          <div className="jf-chips">
+            {working.map(c => (
+              <span key={c.code} className="jf-chip"><Flag code={c.code}/>{c.name}</span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function YearView({ focus, index, onDay }){
+  const year = focus.getFullYear();
+  const today = new Date();
+  return (
+    <div className="jf-year">
+      {Array.from({length:12}, (_,m) => {
+        const cells = miniMatrix(year, m);
+        return (
+          <div key={m} className="jf-mini">
+            <div className="mtitle">{cap(fmt(new Date(year,m,1), {month:'long'}))}</div>
+            <div className="jf-mgrid">
+              {DOW1.map((d,i) => <div key={'h'+i} className="h">{d}</div>)}
+              {cells.map((d,i) => {
+                if(!d) return <span key={i} className="jf-mday empty"/>;
+                const hits = index[ymd(d)] || [];
+                const cls = ['jf-mday', isWknd(d)?'wknd':'', sameDay(d,today)?'today':''].join(' ');
+                return (
+                  <button key={i} className={cls} onClick={()=>onDay(d)}>
+                    <span>{d.getDate()}</span>
+                    <span className="mdots">
+                      {hits.slice(0,3).map((x,j) => <span key={j} className="mdot" style={{background:x.color}}/>)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function Drawer({ date, index, selected, onClose, onGoDay }){
+  const { hits, off, working, total } = verdict(date, index, selected);
+  return (
+    <div className="jf-drawer" role="dialog" aria-label="Détail du jour">
+      <div className="jf-dhead">
+        <div>
+          <div className="dt">{cap(fmt(date, {weekday:'long', day:'numeric', month:'long', year:'numeric'}))}</div>
+          <div className="vd">
+            {off.length===0 ? `Aucun pays férié sur ${total}.` : `${off.length} férié${off.length>1?'s':''} · ${working.length} ouvré${working.length>1?'s':''}`}
+            {isWknd(date) && ' · week-end'}
+          </div>
+          <button className="jf-dlink" onClick={onGoDay}>Ouvrir la vue Jour →</button>
+        </div>
+        <button className="jf-ico" aria-label="Fermer" onClick={onClose}><X size={18}/></button>
+      </div>
+      <div className="jf-dbody">
+        {off.length>0 ? hits.map((x,i) => (
+          <div key={i} className="jf-hcard">
+            <Flag code={x.code}/>
+            <div>
+              <div className="co">{x.name}</div>
+              <div className="nm">{x.h.localName}
+                {x.h.global ? <span className="jf-badge">National</span> : <span className="jf-badge reg">Régional</span>}
+              </div>
+              {x.h.name && x.h.name!==x.h.localName && <div className="en">{x.h.name}</div>}
+            </div>
+          </div>
+        )) : (
+          <p style={{color:'#5C6675', fontSize:13, margin:'2px 0 16px'}}>
+            Journée ouvrée dans tous les pays affichés.
+          </p>
+        )}
+        {working.length>0 && (
+          <>
+            <div style={{fontSize:12, color:'#98A1AD', margin:'14px 0 8px'}}>Ouvrés</div>
+            <div className="jf-chips">
+              {working.map(c => <span key={c.code} className="jf-chip"><Flag code={c.code}/>{c.name}</span>)}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
