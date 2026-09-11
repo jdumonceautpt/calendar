@@ -315,7 +315,12 @@ function App(){
   const [countries, setCountries] = useState([]);
   const [cstatus, setCstatus]   = useState('loading');
   const [selected, setSelected] = useState([]);
-  const [favorites, setFavorites] = useState(new Set());
+  const [favorites, setFavorites] = useState(() => {
+    try {
+      const raw = localStorage.getItem('jf-favorites');
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch (e) { return new Set(); }
+  });
   const [view, setView]   = useState('month');
   const [focus, setFocus] = useState(new Date());
   const [query, setQuery] = useState('');
@@ -345,7 +350,7 @@ function App(){
   useEffect(() => {
     if (didInit.current || cstatus!=='ready') return;
     didInit.current = true;
-    const wanted = ['FR','DE','US','JP'];
+    const wanted = ['FR'];
     const init = [];
     wanted.forEach(code => {
       const c = countries.find(x => x.code===code);
@@ -406,6 +411,9 @@ function App(){
       return next;
     });
   };
+  useEffect(() => {
+    try { localStorage.setItem('jf-favorites', JSON.stringify([...favorites])); } catch (e) {}
+  }, [favorites]);
   const byFavFirst = (a, b) => {
     const fa = favorites.has(a.code), fb = favorites.has(b.code);
     return fa===fb ? 0 : fa ? -1 : 1;
