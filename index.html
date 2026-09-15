@@ -208,6 +208,24 @@ html, body, #root { height:100%; margin:0; }
 .jf-banner button { font:inherit; font-size:12.5px; color:#8A3B1E; background:transparent;
   border:1px solid #D9AE9E; border-radius:6px; padding:3px 10px; cursor:pointer; font-weight:500; }
 
+/* --- sélecteur de langue --- */
+.jf-lang { display:inline-flex; align-items:center; gap:6px; padding:6px 8px 6px 10px;
+  border:1px solid var(--line); border-radius:7px; background:var(--panel);
+  color:var(--muted); cursor:pointer; }
+.jf-lang select { font:inherit; font-size:13px; color:var(--ink); border:0; background:transparent;
+  appearance:none; -webkit-appearance:none; padding-right:2px; cursor:pointer; outline:none; }
+.jf-lang > svg:last-child { color:var(--faint); }
+.jf-lang:focus-within { border-color:var(--teal-line); }
+
+/* --- carte de jour férié : nom local et lien Wikipédia --- */
+.jf-hcard .jf-hbody { min-width:0; }
+.jf-hcard .en .lbl { color:var(--faint); }
+.jf-wiki { display:inline-flex; align-items:center; gap:5px; font-size:12px; color:var(--teal);
+  text-decoration:none; margin-top:7px; }
+.jf-wiki:hover { text-decoration:underline; }
+.jf-dnote { color:var(--muted); font-size:13px; margin:2px 0 16px; }
+.jf-dsec { font-size:12px; color:var(--faint); margin:14px 0 8px; }
+
 .jf button:focus-visible, .jf input:focus-visible, .jf-cell:focus-visible, .jf-mday:focus-visible {
   outline:2px solid var(--teal); outline-offset:1px; }
 
@@ -236,7 +254,8 @@ html, body, #root { height:100%; margin:0; }
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
 <script type="text/babel-src" id="app-src">
-const { useState, useEffect, useMemo, useRef } = React;
+const { useState, useEffect, useMemo, useRef, useCallback,
+        createContext, useContext } = React;
 
 /* ---- inline icons (lucide paths) ---- */
 function Svg({ size=18, children }){
@@ -245,10 +264,12 @@ function Svg({ size=18, children }){
 }
 const ChevronLeft  = ({size}) => <Svg size={size}><polyline points="15 18 9 12 15 6"/></Svg>;
 const ChevronRight = ({size}) => <Svg size={size}><polyline points="9 18 15 12 9 6"/></Svg>;
+const ChevronDown  = ({size}) => <Svg size={size}><polyline points="6 9 12 15 18 9"/></Svg>;
 const Search = ({size}) => <Svg size={size}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></Svg>;
 const X = ({size}) => <Svg size={size}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></Svg>;
 const Globe = ({size}) => <Svg size={size}><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></Svg>;
 const CalendarDays = ({size}) => <Svg size={size}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></Svg>;
+const ExternalLink = ({size}) => <Svg size={size}><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></Svg>;
 function StarIcon({ size=14, filled }){
   return (
     <svg width={size} height={size} viewBox="0 0 24 24"
@@ -260,26 +281,512 @@ function StarIcon({ size=14, filled }){
   );
 }
 
-/* ---- config & helpers ---- */
+/* ---- config ---- */
 const PALETTE = ['#2563EB','#DB2777','#059669','#D97706','#7C3AED','#0891B2','#DC2626',
   '#4F46E5','#CA8A04','#0D9488','#C026D3','#EA580C','#65A30D','#9333EA'];
 
+const LANGS = [
+  { code:'fr', label:'Français',   locale:'fr-FR' },
+  { code:'en', label:'English',    locale:'en-GB' },
+  { code:'es', label:'Español',    locale:'es-ES' },
+  { code:'de', label:'Deutsch',    locale:'de-DE' },
+  { code:'it', label:'Italiano',   locale:'it-IT' },
+  { code:'pt', label:'Português',  locale:'pt-PT' },
+];
+const LANG_CODES = LANGS.map(l => l.code);
+const DEFAULT_LANG = 'fr';
+const LS_LANG = 'jf-lang';
+const LS_WIKI = 'jf-wiki';
+
+/* Pays dont le localName renvoyé par Nager.Date est réellement dans cette langue.
+   Vérifié à la main : la Suisse renvoie de l'allemand, la Belgique du néerlandais
+   et le Luxembourg du luxembourgeois — d'où leur absence de la liste 'fr'.
+   L'Afrique francophone renvoie de l'anglais ; l'exclure ne change rien puisque
+   le repli anglais donne alors exactement le même texte. */
+const LANG_HOME = {
+  fr: new Set(['FR','MC','HT']),
+  es: new Set(['ES','MX','AR','CO','PE','CL','VE','EC','GT','CU','BO','DO',
+               'HN','PY','SV','NI','CR','PA','UY']),
+  de: new Set(['DE','AT','CH','LI']),
+  it: new Set(['IT','SM','VA']),
+  pt: new Set(['PT','BR','AO','MZ','CV','ST','GW','TL']),
+};
+
+/* ---- libellés d'interface ---- */
+const UI = {
+  fr: {
+    title:'Jours fériés dans le monde', sub:'Planification multi-pays',
+    day:'Jour', week:'Semaine', month:'Mois', year:'Année', today:'Aujourd’hui',
+    prev:'Précédent', next:'Suivant', language:'Langue',
+    countriesBtn:n=>`Pays (${n})`, railTitle:'Pays affichés',
+    searchPh:'Rechercher un pays…', loadingCountries:'Chargement des pays…',
+    countriesError:'Impossible de charger la liste des pays.', retry:'Réessayer',
+    noResults:q=>`Aucun résultat pour « ${q} ».`,
+    groupSelected:'Sélectionnés', groupAll:'Tous les pays',
+    railWknd:'Week-ends grisés', railWkndSub:'sam.–dim.',
+    railWkndNote:'Certains pays observent d’autres jours de repos.', railData:'Données',
+    netError:'Certaines données n’ont pas pu être chargées (réseau).',
+    empty:'Sélectionnez un ou plusieurs pays dans le panneau de gauche pour afficher leurs jours fériés.',
+    verdictNone:n=>`Aucun pays férié — ${n} pays ouvré${n>1?'s':''}.`,
+    verdictSome:(k,n)=>`${k} pays férié${k>1?'s':''} sur ${n} affiché${n>1?'s':''}.`,
+    weekend:'week-end', secHoliday:'Fériés', secWorking:'Ouvrés',
+    secWorkingNote:'(hors week-end éventuel)',
+    national:'National', regional:'Régional',
+    drawerLabel:'Détail du jour', close:'Fermer', favorite:'Favori',
+    openDay:'Ouvrir la vue Jour →',
+    drawerNone:n=>`Aucun pays férié sur ${n}.`,
+    drawerSome:(k,w)=>`${k} férié${k>1?'s':''} · ${w} ouvré${w>1?'s':''}`,
+    allWorking:'Journée ouvrée dans tous les pays affichés.',
+    wiki:'Wikipédia', wikiEn:'Wikipédia (en anglais)', wikiSearch:'Chercher sur Wikipédia',
+    localNameLbl:'Nom local',
+  },
+  en: {
+    title:'Public holidays worldwide', sub:'Multi-country planning',
+    day:'Day', week:'Week', month:'Month', year:'Year', today:'Today',
+    prev:'Previous', next:'Next', language:'Language',
+    countriesBtn:n=>`Countries (${n})`, railTitle:'Countries shown',
+    searchPh:'Search for a country…', loadingCountries:'Loading countries…',
+    countriesError:'Could not load the country list.', retry:'Retry',
+    noResults:q=>`No result for “${q}”.`,
+    groupSelected:'Selected', groupAll:'All countries',
+    railWknd:'Weekends shaded', railWkndSub:'Sat–Sun',
+    railWkndNote:'Some countries observe different days of rest.', railData:'Data',
+    netError:'Some data could not be loaded (network).',
+    empty:'Select one or more countries in the left panel to display their public holidays.',
+    verdictNone:n=>`No country off — ${n} working ${n>1?'countries':'country'}.`,
+    verdictSome:(k,n)=>`${k} of ${n} ${n>1?'countries':'country'} off.`,
+    weekend:'weekend', secHoliday:'Holidays', secWorking:'Working',
+    secWorkingNote:'(weekend aside)',
+    national:'National', regional:'Regional',
+    drawerLabel:'Day detail', close:'Close', favorite:'Favourite',
+    openDay:'Open Day view →',
+    drawerNone:n=>`No country off out of ${n}.`,
+    drawerSome:(k,w)=>`${k} off · ${w} working`,
+    allWorking:'A working day in every country shown.',
+    wiki:'Wikipedia', wikiEn:'Wikipedia', wikiSearch:'Search on Wikipedia',
+    localNameLbl:'Local name',
+  },
+  es: {
+    title:'Días festivos en el mundo', sub:'Planificación multipaís',
+    day:'Día', week:'Semana', month:'Mes', year:'Año', today:'Hoy',
+    prev:'Anterior', next:'Siguiente', language:'Idioma',
+    countriesBtn:n=>`Países (${n})`, railTitle:'Países mostrados',
+    searchPh:'Buscar un país…', loadingCountries:'Cargando países…',
+    countriesError:'No se pudo cargar la lista de países.', retry:'Reintentar',
+    noResults:q=>`Sin resultados para «${q}».`,
+    groupSelected:'Seleccionados', groupAll:'Todos los países',
+    railWknd:'Fines de semana sombreados', railWkndSub:'sáb.–dom.',
+    railWkndNote:'Algunos países descansan otros días.', railData:'Datos',
+    netError:'Algunos datos no se pudieron cargar (red).',
+    empty:'Seleccione uno o varios países en el panel izquierdo para ver sus días festivos.',
+    verdictNone:n=>`Ningún país festivo — ${n} ${n>1?'países laborables':'país laborable'}.`,
+    verdictSome:(k,n)=>`${k} ${k>1?'países festivos':'país festivo'} de ${n}.`,
+    weekend:'fin de semana', secHoliday:'Festivos', secWorking:'Laborables',
+    secWorkingNote:'(sin contar el fin de semana)',
+    national:'Nacional', regional:'Regional',
+    drawerLabel:'Detalle del día', close:'Cerrar', favorite:'Favorito',
+    openDay:'Abrir la vista Día →',
+    drawerNone:n=>`Ningún país festivo de ${n}.`,
+    drawerSome:(k,w)=>`${k} festivo${k>1?'s':''} · ${w} laborable${w>1?'s':''}`,
+    allWorking:'Día laborable en todos los países mostrados.',
+    wiki:'Wikipedia', wikiEn:'Wikipedia (en inglés)', wikiSearch:'Buscar en Wikipedia',
+    localNameLbl:'Nombre local',
+  },
+  de: {
+    title:'Feiertage weltweit', sub:'Länderübergreifende Planung',
+    day:'Tag', week:'Woche', month:'Monat', year:'Jahr', today:'Heute',
+    prev:'Zurück', next:'Weiter', language:'Sprache',
+    countriesBtn:n=>`Länder (${n})`, railTitle:'Angezeigte Länder',
+    searchPh:'Land suchen…', loadingCountries:'Länder werden geladen…',
+    countriesError:'Die Länderliste konnte nicht geladen werden.', retry:'Erneut versuchen',
+    noResults:q=>`Kein Ergebnis für „${q}“.`,
+    groupSelected:'Ausgewählt', groupAll:'Alle Länder',
+    railWknd:'Wochenenden grau', railWkndSub:'Sa.–So.',
+    railWkndNote:'Manche Länder haben andere Ruhetage.', railData:'Daten',
+    netError:'Einige Daten konnten nicht geladen werden (Netzwerk).',
+    empty:'Wählen Sie links ein oder mehrere Länder aus, um ihre Feiertage anzuzeigen.',
+    verdictNone:n=>`Kein Land feiert — ${n} ${n>1?'Länder arbeiten':'Land arbeitet'}.`,
+    verdictSome:(k,n)=>`${k} von ${n} ${n>1?'Ländern':'Land'} hat frei.`,
+    weekend:'Wochenende', secHoliday:'Feiertage', secWorking:'Arbeitstag',
+    secWorkingNote:'(Wochenende ausgenommen)',
+    national:'Landesweit', regional:'Regional',
+    drawerLabel:'Tagesdetail', close:'Schließen', favorite:'Favorit',
+    openDay:'Tagesansicht öffnen →',
+    drawerNone:n=>`Kein Land von ${n} hat frei.`,
+    drawerSome:(k,w)=>`${k} frei · ${w} arbeitet`,
+    allWorking:'Arbeitstag in allen angezeigten Ländern.',
+    wiki:'Wikipedia', wikiEn:'Wikipedia (englisch)', wikiSearch:'Auf Wikipedia suchen',
+    localNameLbl:'Landessprachlicher Name',
+  },
+  it: {
+    title:'Giorni festivi nel mondo', sub:'Pianificazione multipaese',
+    day:'Giorno', week:'Settimana', month:'Mese', year:'Anno', today:'Oggi',
+    prev:'Precedente', next:'Successivo', language:'Lingua',
+    countriesBtn:n=>`Paesi (${n})`, railTitle:'Paesi visualizzati',
+    searchPh:'Cerca un paese…', loadingCountries:'Caricamento dei paesi…',
+    countriesError:'Impossibile caricare l’elenco dei paesi.', retry:'Riprova',
+    noResults:q=>`Nessun risultato per «${q}».`,
+    groupSelected:'Selezionati', groupAll:'Tutti i paesi',
+    railWknd:'Fine settimana in grigio', railWkndSub:'sab.–dom.',
+    railWkndNote:'Alcuni paesi osservano altri giorni di riposo.', railData:'Dati',
+    netError:'Alcuni dati non sono stati caricati (rete).',
+    empty:'Seleziona uno o più paesi nel pannello di sinistra per vederne i giorni festivi.',
+    verdictNone:n=>`Nessun paese festivo — ${n} ${n>1?'paesi lavorativi':'paese lavorativo'}.`,
+    verdictSome:(k,n)=>`${k} ${k>1?'paesi festivi':'paese festivo'} su ${n}.`,
+    weekend:'fine settimana', secHoliday:'Festivi', secWorking:'Lavorativi',
+    secWorkingNote:'(fine settimana escluso)',
+    national:'Nazionale', regional:'Regionale',
+    drawerLabel:'Dettaglio del giorno', close:'Chiudi', favorite:'Preferito',
+    openDay:'Apri la vista Giorno →',
+    drawerNone:n=>`Nessun paese festivo su ${n}.`,
+    drawerSome:(k,w)=>`${k} festiv${k>1?'i':'o'} · ${w} lavorativ${w>1?'i':'o'}`,
+    allWorking:'Giorno lavorativo in tutti i paesi visualizzati.',
+    wiki:'Wikipedia', wikiEn:'Wikipedia (in inglese)', wikiSearch:'Cerca su Wikipedia',
+    localNameLbl:'Nome locale',
+  },
+  pt: {
+    title:'Feriados no mundo', sub:'Planeamento multipaís',
+    day:'Dia', week:'Semana', month:'Mês', year:'Ano', today:'Hoje',
+    prev:'Anterior', next:'Seguinte', language:'Idioma',
+    countriesBtn:n=>`Países (${n})`, railTitle:'Países exibidos',
+    searchPh:'Procurar um país…', loadingCountries:'A carregar os países…',
+    countriesError:'Não foi possível carregar a lista de países.', retry:'Tentar novamente',
+    noResults:q=>`Sem resultados para «${q}».`,
+    groupSelected:'Selecionados', groupAll:'Todos os países',
+    railWknd:'Fins de semana sombreados', railWkndSub:'sáb.–dom.',
+    railWkndNote:'Alguns países observam outros dias de descanso.', railData:'Dados',
+    netError:'Alguns dados não puderam ser carregados (rede).',
+    empty:'Selecione um ou mais países no painel da esquerda para ver os seus feriados.',
+    verdictNone:n=>`Nenhum país de feriado — ${n} ${n>1?'países úteis':'país útil'}.`,
+    verdictSome:(k,n)=>`${k} ${k>1?'países de feriado':'país de feriado'} de ${n}.`,
+    weekend:'fim de semana', secHoliday:'Feriados', secWorking:'Dias úteis',
+    secWorkingNote:'(sem contar o fim de semana)',
+    national:'Nacional', regional:'Regional',
+    drawerLabel:'Detalhe do dia', close:'Fechar', favorite:'Favorito',
+    openDay:'Abrir a vista Dia →',
+    drawerNone:n=>`Nenhum país de feriado em ${n}.`,
+    drawerSome:(k,w)=>`${k} de feriado · ${w} ${w>1?'úteis':'útil'}`,
+    allWorking:'Dia útil em todos os países exibidos.',
+    wiki:'Wikipédia', wikiEn:'Wikipédia (em inglês)', wikiSearch:'Pesquisar na Wikipédia',
+    localNameLbl:'Nome local',
+  },
+};
+
+/* ---- dictionnaire des noms de jours fériés ----
+   Nager.Date ne fournit que localName (langue du pays) et name (anglais).
+   Ce dictionnaire couvre les noms anglais récurrents, mesurés sur les 2 666
+   jours fériés de 2026 : les ~85 entrées ci-dessous représentent près de 75 %
+   des occurrences. Chaque entrée porte aussi le titre de l'article anglais de
+   Wikipédia, utilisé comme pivot pour retrouver l'article traduit.
+   Forme : [[alias anglais…], titre Wikipédia anglais, traductions]           */
+const HOL_RAW = [
+  [["New Year's Day","New Year holiday","New Year's Day (Observed)"], "New Year's Day",
+   {fr:"Jour de l’An", es:"Año Nuevo", de:"Neujahr", it:"Capodanno", pt:"Ano Novo"}],
+  [["New Year's Eve"], "New Year's Eve",
+   {fr:"Saint-Sylvestre", es:"Nochevieja", de:"Silvester", it:"San Silvestro", pt:"Véspera de Ano Novo"}],
+  [["Christmas Day","Christmas"], "Christmas",
+   {fr:"Noël", es:"Navidad", de:"Weihnachten", it:"Natale", pt:"Natal"}],
+  [["Christmas Eve"], "Christmas Eve",
+   {fr:"Veille de Noël", es:"Nochebuena", de:"Heiliger Abend", it:"Vigilia di Natale", pt:"Véspera de Natal"}],
+  [["Christmas Day (Orthodox)","Orthodox Christmas Day"], "Christmas",
+   {fr:"Noël orthodoxe", es:"Navidad ortodoxa", de:"Orthodoxes Weihnachtsfest", it:"Natale ortodosso", pt:"Natal Ortodoxo"}],
+  [["St. Stephen's Day","Saint Stephen's Day","Second day of Christmas"], "Saint Stephen's Day",
+   {fr:"Saint-Étienne", es:"San Esteban", de:"Stephanstag", it:"Santo Stefano", pt:"Dia de Santo Estêvão"}],
+  [["Boxing Day"], "Boxing Day",
+   {fr:"Boxing Day", es:"Boxing Day", de:"Zweiter Weihnachtsfeiertag", it:"Boxing Day", pt:"Boxing Day"}],
+  [["Good Friday"], "Good Friday",
+   {fr:"Vendredi saint", es:"Viernes Santo", de:"Karfreitag", it:"Venerdì santo", pt:"Sexta-feira Santa"}],
+  [["Holy Saturday"], "Holy Saturday",
+   {fr:"Samedi saint", es:"Sábado Santo", de:"Karsamstag", it:"Sabato santo", pt:"Sábado Santo"}],
+  [["Maundy Thursday"], "Maundy Thursday",
+   {fr:"Jeudi saint", es:"Jueves Santo", de:"Gründonnerstag", it:"Giovedì santo", pt:"Quinta-feira Santa"}],
+  [["Easter Sunday","Easter"], "Easter",
+   {fr:"Pâques", es:"Domingo de Resurrección", de:"Ostersonntag", it:"Pasqua", pt:"Domingo de Páscoa"}],
+  [["Easter Monday"], "Easter Monday",
+   {fr:"Lundi de Pâques", es:"Lunes de Pascua", de:"Ostermontag", it:"Lunedì dell’Angelo", pt:"Segunda-feira de Páscoa"}],
+  [["Ascension Day","Day after Ascension Day"], "Feast of the Ascension",
+   {fr:"Ascension", es:"Ascensión", de:"Christi Himmelfahrt", it:"Ascensione", pt:"Ascensão"}],
+  [["Pentecost","Whit Sunday"], "Pentecost",
+   {fr:"Pentecôte", es:"Pentecostés", de:"Pfingsten", it:"Pentecoste", pt:"Pentecostes"}],
+  [["Whit Monday","Pentecost Monday"], "Whit Monday",
+   {fr:"Lundi de Pentecôte", es:"Lunes de Pentecostés", de:"Pfingstmontag", it:"Lunedì di Pentecoste", pt:"Segunda-feira de Pentecostes"}],
+  [["Corpus Christi"], "Feast of Corpus Christi",
+   {fr:"Fête-Dieu", es:"Corpus Christi", de:"Fronleichnam", it:"Corpus Domini", pt:"Corpo de Deus"}],
+  [["Assumption Day","Assumption of Mary","Assumption of the Virgin Mary"], "Assumption of Mary",
+   {fr:"Assomption", es:"Asunción de María", de:"Mariä Himmelfahrt", it:"Assunzione di Maria", pt:"Assunção de Maria"}],
+  [["All Saints' Day","All Saints Day"], "All Saints' Day",
+   {fr:"Toussaint", es:"Día de Todos los Santos", de:"Allerheiligen", it:"Ognissanti", pt:"Dia de Todos os Santos"}],
+  [["All Souls' Day","All Souls Day"], "All Souls' Day",
+   {fr:"Jour des Morts", es:"Día de los Fieles Difuntos", de:"Allerseelen", it:"Commemorazione dei defunti", pt:"Dia de Finados"}],
+  [["Epiphany"], "Epiphany (holiday)",
+   {fr:"Épiphanie", es:"Epifanía", de:"Erscheinung des Herrn", it:"Epifania", pt:"Epifania"}],
+  [["Immaculate Conception"], "Immaculate Conception",
+   {fr:"Immaculée Conception", es:"Inmaculada Concepción", de:"Mariä Empfängnis", it:"Immacolata Concezione", pt:"Imaculada Conceição"}],
+  [["Reformation Day"], "Reformation Day",
+   {fr:"Jour de la Réformation", es:"Día de la Reforma", de:"Reformationstag", it:"Giorno della Riforma", pt:"Dia da Reforma"}],
+  [["Saint Joseph's Day","St. Joseph's Day"], "Saint Joseph's Day",
+   {fr:"Saint-Joseph", es:"Día de San José", de:"Josefstag", it:"San Giuseppe", pt:"Dia de São José"}],
+  [["Saint Peter and Saint Paul","Saints Peter and Paul"], "Feast of Saints Peter and Paul",
+   {fr:"Saint-Pierre-et-Saint-Paul", es:"San Pedro y San Pablo", de:"Peter und Paul", it:"Santi Pietro e Paolo", pt:"São Pedro e São Paulo"}],
+  [["Saint Patrick's Day","St. Patrick's Day"], "Saint Patrick's Day",
+   {fr:"Saint-Patrick", es:"Día de San Patricio", de:"St. Patrick’s Day", it:"San Patrizio", pt:"Dia de São Patrício"}],
+  [["Saint George's Day","St. George's Day"], "Saint George's Day",
+   {fr:"Saint-Georges", es:"Día de San Jorge", de:"Georgstag", it:"San Giorgio", pt:"Dia de São Jorge"}],
+  [["Saints Cyril and Methodius Day"], "Saints Cyril and Methodius",
+   {fr:"Saints-Cyrille-et-Méthode", es:"Santos Cirilo y Metodio", de:"Kyrill und Method", it:"Santi Cirillo e Metodio", pt:"Santos Cirilo e Metódio"}],
+  [["General Prayer Day"], "Great Prayer Day",
+   {fr:"Jour de la Grande Prière", es:"Día de la Gran Oración", de:"Großer Bettag", it:"Giorno della Grande Preghiera", pt:"Dia da Grande Oração"}],
+  [["Gospel Day"], "Gospel Day",
+   {fr:"Jour de l’Évangile", es:"Día del Evangelio", de:"Tag des Evangeliums", it:"Giorno del Vangelo", pt:"Dia do Evangelho"}],
+  [["Eid Al-Adha","Eid al-Adha"], "Eid al-Adha",
+   {fr:"Aïd al-Adha", es:"Eid al-Adha", de:"Opferfest", it:"Id al-adha", pt:"Eid al-Adha"}],
+  [["Labour Day","Labor Day","International Workers' Day","Workers' Day","May Day"], "International Workers' Day",
+   {fr:"Fête du Travail", es:"Día del Trabajo", de:"Tag der Arbeit", it:"Festa del lavoro", pt:"Dia do Trabalhador"}],
+  [["Independence Day"], "Independence Day",
+   {fr:"Fête de l’Indépendance", es:"Día de la Independencia", de:"Unabhängigkeitstag", it:"Festa dell’Indipendenza", pt:"Dia da Independência"}],
+  [["Constitution Day"], "Constitution Day",
+   {fr:"Jour de la Constitution", es:"Día de la Constitución", de:"Tag der Verfassung", it:"Festa della Costituzione", pt:"Dia da Constituição"}],
+  [["National Day","National Holiday"], "National Day",
+   {fr:"Fête nationale", es:"Fiesta nacional", de:"Nationalfeiertag", it:"Festa nazionale", pt:"Dia Nacional"}],
+  [["Bastille Day"], "Bastille Day",
+   {fr:"Fête nationale française", es:"Día de la Bastilla", de:"Französischer Nationalfeiertag", it:"Festa nazionale francese", pt:"Dia da Bastilha"}],
+  [["Republic Day"], "Republic Day",
+   {fr:"Jour de la République", es:"Día de la República", de:"Tag der Republik", it:"Festa della Repubblica", pt:"Dia da República"}],
+  [["Liberation Day"], "Liberation Day",
+   {fr:"Jour de la Libération", es:"Día de la Liberación", de:"Tag der Befreiung", it:"Festa della Liberazione", pt:"Dia da Libertação"}],
+  [["Revolution Day"], "Revolution Day",
+   {fr:"Jour de la Révolution", es:"Día de la Revolución", de:"Tag der Revolution", it:"Giorno della Rivoluzione", pt:"Dia da Revolução"}],
+  [["Victory Day"], "Victory Day",
+   {fr:"Jour de la Victoire", es:"Día de la Victoria", de:"Tag des Sieges", it:"Giorno della Vittoria", pt:"Dia da Vitória"}],
+  [["Victory in Europe Day"], "Victory in Europe Day",
+   {fr:"Victoire du 8 mai 1945", es:"Día de la Victoria en Europa", de:"Tag des Sieges in Europa", it:"Giorno della Vittoria in Europa", pt:"Dia da Vitória na Europa"}],
+  [["Armistice Day"], "Armistice Day",
+   {fr:"Armistice", es:"Día del Armisticio", de:"Waffenstillstandstag", it:"Giorno dell’armistizio", pt:"Dia do Armistício"}],
+  [["Remembrance Day"], "Remembrance Day",
+   {fr:"Jour du Souvenir", es:"Día del Recuerdo", de:"Remembrance Day", it:"Giorno della Memoria", pt:"Dia da Memória"}],
+  [["Memorial Day"], "Memorial Day",
+   {fr:"Memorial Day", es:"Día de los Caídos", de:"Memorial Day", it:"Memorial Day", pt:"Dia dos Caídos"}],
+  [["Veterans Day","Veterans' Day"], "Veterans Day",
+   {fr:"Journée des Vétérans", es:"Día de los Veteranos", de:"Veterans Day", it:"Giornata dei Veterani", pt:"Dia dos Veteranos"}],
+  [["Armed Forces Day"], "Armed Forces Day",
+   {fr:"Journée des Forces armées", es:"Día de las Fuerzas Armadas", de:"Tag der Streitkräfte", it:"Giornata delle Forze Armate", pt:"Dia das Forças Armadas"}],
+  [["Army Day"], "Army Day",
+   {fr:"Journée de l’Armée", es:"Día del Ejército", de:"Tag der Armee", it:"Giornata dell’Esercito", pt:"Dia do Exército"}],
+  [["Martyrs' Day","Martyrs Day"], "Martyrs' Day",
+   {fr:"Jour des Martyrs", es:"Día de los Mártires", de:"Tag der Märtyrer", it:"Giorno dei Martiri", pt:"Dia dos Mártires"}],
+  [["National Heroes' Day","National Heroes Day","Heroes' Day","Heroes Day"], "National Heroes' Day",
+   {fr:"Journée des Héros nationaux", es:"Día de los Héroes Nacionales", de:"Tag der Nationalhelden", it:"Giornata degli Eroi nazionali", pt:"Dia dos Heróis Nacionais"}],
+  [["Emancipation Day"], "Emancipation Day",
+   {fr:"Jour de l’Émancipation", es:"Día de la Emancipación", de:"Emanzipationstag", it:"Giorno dell’Emancipazione", pt:"Dia da Emancipação"}],
+  [["Abolition Day"], "Abolition of slavery",
+   {fr:"Abolition de l’esclavage", es:"Día de la Abolición", de:"Tag der Abschaffung der Sklaverei", it:"Giorno dell’Abolizione", pt:"Dia da Abolição"}],
+  [["Freedom Day"], "Freedom Day",
+   {fr:"Jour de la Liberté", es:"Día de la Libertad", de:"Tag der Freiheit", it:"Giorno della Libertà", pt:"Dia da Liberdade"}],
+  [["Unity Day"], "Unity Day",
+   {fr:"Jour de l’Unité", es:"Día de la Unidad", de:"Tag der Einheit", it:"Giorno dell’Unità", pt:"Dia da Unidade"}],
+  [["Statehood Day"], "Statehood Day",
+   {fr:"Jour de l’État", es:"Día de la Estatalidad", de:"Tag der Staatlichkeit", it:"Giorno dello Stato", pt:"Dia da Estatalidade"}],
+  [["Youth Day"], "Youth Day",
+   {fr:"Journée de la Jeunesse", es:"Día de la Juventud", de:"Tag der Jugend", it:"Giornata della Gioventù", pt:"Dia da Juventude"}],
+  [["Children's Day"], "Children's Day",
+   {fr:"Journée des Enfants", es:"Día del Niño", de:"Kindertag", it:"Giornata dei bambini", pt:"Dia das Crianças"}],
+  [["International Women's Day","Women's Day"], "International Women's Day",
+   {fr:"Journée internationale des femmes", es:"Día Internacional de la Mujer", de:"Internationaler Frauentag", it:"Giornata internazionale della donna", pt:"Dia Internacional da Mulher"}],
+  [["Mother's Day"], "Mother's Day",
+   {fr:"Fête des Mères", es:"Día de la Madre", de:"Muttertag", it:"Festa della mamma", pt:"Dia das Mães"}],
+  [["Father's Day"], "Father's Day",
+   {fr:"Fête des Pères", es:"Día del Padre", de:"Vatertag", it:"Festa del papà", pt:"Dia dos Pais"}],
+  [["Family Day"], "Family Day (Canada)",
+   {fr:"Jour de la Famille", es:"Día de la Familia", de:"Familientag", it:"Giornata della Famiglia", pt:"Dia da Família"}],
+  [["Carnival"], "Carnival",
+   {fr:"Carnaval", es:"Carnaval", de:"Karneval", it:"Carnevale", pt:"Carnaval"}],
+  [["Carnival Monday"], "Rose Monday",
+   {fr:"Lundi gras", es:"Lunes de Carnaval", de:"Rosenmontag", it:"Lunedì di Carnevale", pt:"Segunda-feira de Carnaval"}],
+  [["Carnival Tuesday","Shrove Tuesday"], "Shrove Tuesday",
+   {fr:"Mardi gras", es:"Martes de Carnaval", de:"Faschingsdienstag", it:"Martedì grasso", pt:"Terça-feira de Carnaval"}],
+  [["Thanksgiving Day","Thanksgiving"], "Thanksgiving",
+   {fr:"Thanksgiving", es:"Acción de Gracias", de:"Thanksgiving", it:"Giorno del Ringraziamento", pt:"Dia de Ação de Graças"}],
+  [["Columbus Day"], "Columbus Day",
+   {fr:"Jour de Christophe Colomb", es:"Día de la Hispanidad", de:"Kolumbustag", it:"Giorno di Colombo", pt:"Dia de Colombo"}],
+  [["Presidents' Day","Presidents Day"], "Washington's Birthday",
+   {fr:"Presidents’ Day", es:"Día de los Presidentes", de:"Presidents’ Day", it:"Giorno dei Presidenti", pt:"Dia dos Presidentes"}],
+  [["Discovery Day"], "Discovery Day",
+   {fr:"Jour de la Découverte", es:"Día del Descubrimiento", de:"Tag der Entdeckung", it:"Giorno della Scoperta", pt:"Dia do Descobrimento"}],
+  [["Heritage Day"], "Heritage Day",
+   {fr:"Journée du Patrimoine", es:"Día del Patrimonio", de:"Tag des Erbes", it:"Giornata del Patrimonio", pt:"Dia do Património"}],
+  [["Africa Day"], "Africa Day",
+   {fr:"Journée de l’Afrique", es:"Día de África", de:"Afrikatag", it:"Giornata dell’Africa", pt:"Dia de África"}],
+  [["Anzac Day"], "Anzac Day",
+   {fr:"Anzac Day", es:"Día de Anzac", de:"Anzac Day", it:"Anzac Day", pt:"Dia de Anzac"}],
+  [["Australia Day"], "Australia Day",
+   {fr:"Fête de l’Australie", es:"Día de Australia", de:"Australia Day", it:"Giornata dell’Australia", pt:"Dia da Austrália"}],
+  [["King's Birthday","Queen's Birthday"], "King's Official Birthday",
+   {fr:"Anniversaire du Roi", es:"Cumpleaños del Rey", de:"Geburtstag des Königs", it:"Compleanno del Re", pt:"Aniversário do Rei"}],
+  [["King's Day"], "Koningsdag",
+   {fr:"Jour du Roi", es:"Día del Rey", de:"Königstag", it:"Giorno del Re", pt:"Dia do Rei"}],
+  [["Midsummer Day"], "Midsummer",
+   {fr:"Saint-Jean d’été", es:"San Juan", de:"Mittsommer", it:"Mezza estate", pt:"São João"}],
+  [["Lunar New Year","Chinese New Year"], "Chinese New Year",
+   {fr:"Nouvel An chinois", es:"Año Nuevo Chino", de:"Chinesisches Neujahrsfest", it:"Capodanno cinese", pt:"Ano Novo Chinês"}],
+  [["Naadam Holiday"], "Naadam",
+   {fr:"Naadam", es:"Naadam", de:"Naadam", it:"Naadam", pt:"Naadam"}],
+  [["Spring Bank Holiday"], "Bank holiday",
+   {fr:"Jour férié de printemps", es:"Festivo de primavera", de:"Feiertag im Frühjahr", it:"Festivo di primavera", pt:"Feriado da primavera"}],
+  [["Summer Bank Holiday"], "Bank holiday",
+   {fr:"Jour férié d’été", es:"Festivo de verano", de:"Feiertag im Sommer", it:"Festivo estivo", pt:"Feriado de verão"}],
+  [["Early May Bank Holiday"], "Bank holiday",
+   {fr:"Jour férié de début mai", es:"Festivo de principios de mayo", de:"Feiertag Anfang Mai", it:"Festivo di inizio maggio", pt:"Feriado do início de maio"}],
+  [["National Flag Day","Flag Day"], "Flag Day",
+   {fr:"Jour du Drapeau", es:"Día de la Bandera", de:"Tag der Flagge", it:"Giorno della Bandiera", pt:"Dia da Bandeira"}],
+  [["Indian Arrival Day"], "Indian Arrival Day",
+   {fr:"Jour de l’Arrivée des Indiens", es:"Día de la Llegada de los Indios", de:"Indian Arrival Day", it:"Giorno dell’Arrivo degli Indiani", pt:"Dia da Chegada dos Indianos"}],
+  [["August Festivals"], null,
+   {fr:"Festivités d’août", es:"Fiestas de agosto", de:"Augustfeste", it:"Festività di agosto", pt:"Festas de agosto"}],
+  [["National Pupusa Festival"], "Pupusa",
+   {fr:"Fête nationale de la pupusa", es:"Día Nacional de la Pupusa", de:"Nationales Pupusa-Fest", it:"Festa nazionale della pupusa", pt:"Festival Nacional da Pupusa"}],
+];
+
+/* ---- helpers ---- */
 const pad = n => String(n).padStart(2, '0');
 const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
 const startOfWeek = d => addDays(d, -((d.getDay()+6)%7));
 const sameDay = (a, b) => ymd(a) === ymd(b);
 const cap = s => s ? s.charAt(0).toUpperCase()+s.slice(1) : s;
-const norm = s => (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const norm = s => (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
 const isWknd = d => d.getDay()===0 || d.getDay()===6;
 
-let regionNames = null;
-try { regionNames = new Intl.DisplayNames(['fr'], { type:'region' }); } catch (e) {}
-const frName = (code, fb) => { try { return (regionNames && regionNames.of(code)) || fb; } catch (e) { return fb; } };
+/* clé normalisée : fusionne les variantes de ponctuation et d'apostrophe
+   ("All Saints' Day" / "All Saints Day", "Christmas Day (Orthodox)"…) */
+const normKey = s => norm(s).replace(/[‘’'`´]/g,'')
+                            .replace(/[^a-z0-9]+/g,' ').trim();
 
-const fmt = (d, o) => new Intl.DateTimeFormat('fr-FR', o).format(d);
-const DOW = ['lun.','mar.','mer.','jeu.','ven.','sam.','dim.'];
-const DOW1 = ['L','M','M','J','V','S','D'];
+const HOL = {};
+for (const [aliases, wiki, tr] of HOL_RAW)
+  for (const a of aliases) HOL[normKey(a)] = { w: wiki, ...tr };
+
+/* ---- formatage dépendant de la langue (mémoïsé) ---- */
+const localeOf = lang => (LANGS.find(l => l.code===lang) || LANGS[0]).locale;
+const _regionCache = {}, _dowCache = {};
+
+function regionName(lang, code, fallback){
+  if (!_regionCache[lang]) {
+    try { _regionCache[lang] = new Intl.DisplayNames([localeOf(lang)], { type:'region' }); }
+    catch (e) { _regionCache[lang] = null; }
+  }
+  try { return (_regionCache[lang] && _regionCache[lang].of(code)) || fallback; }
+  catch (e) { return fallback; }
+}
+function makeFmt(lang){
+  const loc = localeOf(lang);
+  return (d, o) => { try { return new Intl.DateTimeFormat(loc, o).format(d); } catch (e) { return ymd(d); } };
+}
+/* jours de la semaine dérivés de la locale, lundi en premier */
+function dowLabels(lang){
+  if (_dowCache[lang]) return _dowCache[lang];
+  const loc = localeOf(lang);
+  const ref = new Date(2024, 0, 1); // un lundi
+  let shrt = [], nar = [];
+  try {
+    const fs = new Intl.DateTimeFormat(loc, { weekday:'short' });
+    const fn = new Intl.DateTimeFormat(loc, { weekday:'narrow' });
+    for (let i=0; i<7; i++){
+      shrt.push(fs.format(addDays(ref, i)));
+      nar.push(fn.format(addDays(ref, i)));
+    }
+  } catch (e) {
+    shrt = ['lun.','mar.','mer.','jeu.','ven.','sam.','dim.'];
+    nar  = ['L','M','M','J','V','S','D'];
+  }
+  return (_dowCache[lang] = { short: shrt, narrow: nar });
+}
+
+/* ---- cascade de résolution du nom d'un jour férié ----
+   1. langue choisie  : localName si le pays parle cette langue, sinon dictionnaire
+   2. anglais         : le champ name de Nager.Date, toujours renseigné
+   3. langue d'origine: localName
+   Le niveau 3 n'est en pratique jamais atteint (aucun name vide sur 2 666
+   entrées mesurées), mais il garantit qu'aucun nom ne peut être vide.        */
+function resolveName(h, lang){
+  const entry = HOL[normKey(h.name)];
+  if (lang === 'en') return { text: h.name || h.localName, tier:'target', entry };
+  const home = LANG_HOME[lang];
+  if (home && home.has(h.countryCode) && h.localName)
+    return { text: h.localName, tier:'target', entry };
+  if (entry && entry[lang]) return { text: entry[lang], tier:'target', entry };
+  if (h.name) return { text: h.name, tier:'en', entry };
+  return { text: h.localName, tier:'local', entry };
+}
+
+/* ---- Wikipédia : titre traduit + lien, même cascade ----
+   Un seul appel à l'API anglaise : on demande l'article correspondant au nom
+   anglais et son interlangue vers la langue choisie. On en tire le titre
+   traduit (qui peut enrichir le niveau 1 de la cascade ci-dessus) et l'URL.
+   Réponses mises en cache dans localStorage, y compris les absences.         */
+const wikiMem = {};
+try {
+  const raw = localStorage.getItem(LS_WIKI);
+  if (raw) Object.assign(wikiMem, JSON.parse(raw));
+} catch (e) {}
+let wikiSaveTimer = null;
+function wikiPersist(){
+  clearTimeout(wikiSaveTimer);
+  wikiSaveTimer = setTimeout(() => {
+    try {
+      const keys = Object.keys(wikiMem);
+      if (keys.length > 600) keys.slice(0, keys.length-600).forEach(k => delete wikiMem[k]);
+      localStorage.setItem(LS_WIKI, JSON.stringify(wikiMem));
+    } catch (e) {}
+  }, 400);
+}
+const wikiUrl = (lang, title) =>
+  `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g,'_'))}`;
+const wikiSearchUrl = (lang, q) =>
+  `https://${lang}.wikipedia.org/w/index.php?search=${encodeURIComponent(q)}`;
+
+async function wikiLookup(enTitle, lang){
+  const key = `${lang}|${enTitle}`;
+  if (key in wikiMem) return wikiMem[key];
+  const api = 'https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*'
+            + '&redirects=1&prop=langlinks&lllimit=500&titles=' + encodeURIComponent(enTitle);
+  let out = null;
+  try {
+    const r = await fetch(api);
+    if (r.ok){
+      const j = await r.json();
+      const pages = (j.query && j.query.pages) || {};
+      const page = Object.values(pages)[0];
+      if (page && !('missing' in page)){
+        const ll = (page.langlinks || []).find(l => l.lang === lang);
+        out = ll
+          ? { tier:'target', title: ll['*'], url: wikiUrl(lang, ll['*']) }
+          : { tier:'en',     title: page.title, url: wikiUrl('en', page.title) };
+      }
+    }
+  } catch (e) { out = undefined; }
+  if (out !== undefined){ wikiMem[key] = out; wikiPersist(); }
+  return out;
+}
+
+/* Résout le lien (et éventuellement le titre traduit) d'un jour férié. */
+function useWiki(h, lang, active){
+  const [res, setRes] = useState(null);
+  const enTitle = h ? ((HOL[normKey(h.name)] || {}).w || h.name) : null;
+  useEffect(() => {
+    if (!active || !h || !enTitle){ setRes(null); return; }
+    if (lang === 'en'){
+      setRes({ tier:'en', title: enTitle, url: wikiUrl('en', enTitle) });
+      return;
+    }
+    let alive = true;
+    const key = `${lang}|${enTitle}`;
+    if (key in wikiMem){ setRes(wikiMem[key]); return; }
+    setRes(undefined); // en cours
+    wikiLookup(enTitle, lang).then(r => { if (alive) setRes(r); });
+    return () => { alive = false; };
+  }, [enTitle, lang, active]);
+  return res;
+}
 
 function monthGrid(focus){
   const first = new Date(focus.getFullYear(), focus.getMonth(), 1);
@@ -304,6 +811,10 @@ function visibleYears(view, focus){
   return [...ys];
 }
 
+/* ---- contexte de langue ---- */
+const I18n = createContext(null);
+const useI18n = () => useContext(I18n);
+
 function Flag({ code, cls='flag' }){
   const [broken, setBroken] = useState(false);
   if (broken) return <span className={cls+'-fb mono'}>{code}</span>;
@@ -311,7 +822,34 @@ function Flag({ code, cls='flag' }){
     src={`https://flagcdn.com/${code.toLowerCase()}.svg`} onError={()=>setBroken(true)} />;
 }
 
+function LangPicker(){
+  const { lang, setLang, t } = useI18n();
+  return (
+    <label className="jf-lang" title={t.language}>
+      <Globe size={15}/>
+      <select value={lang} onChange={e=>setLang(e.target.value)} aria-label={t.language}>
+        {LANGS.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+      </select>
+      <ChevronDown size={14}/>
+    </label>
+  );
+}
+
+function initialLang(){
+  try {
+    const saved = localStorage.getItem(LS_LANG);
+    if (saved && LANG_CODES.includes(saved)) return saved;
+  } catch (e) {}
+  const prefs = (navigator.languages || [navigator.language || '']).map(String);
+  for (const p of prefs){
+    const base = p.toLowerCase().split('-')[0];
+    if (LANG_CODES.includes(base)) return base;
+  }
+  return DEFAULT_LANG;
+}
+
 function App(){
+  const [lang, setLang] = useState(initialLang);
   const [countries, setCountries] = useState([]);
   const [cstatus, setCstatus]   = useState('loading');
   const [selected, setSelected] = useState([]);
@@ -328,10 +866,27 @@ function App(){
   const [railOpen, setRailOpen] = useState(false);
   const [netError, setNetError] = useState(false);
   const [refresh, setRefresh] = useState(0);
-
   const cacheRef = useRef({});
   const [cache, setCache] = useState({});
   const didInit = useRef(false);
+
+  useEffect(() => {
+    try { localStorage.setItem(LS_LANG, lang); } catch (e) {}
+    document.documentElement.lang = lang;
+  }, [lang]);
+
+  const i18n = useMemo(() => ({
+    lang, setLang,
+    t: UI[lang] || UI[DEFAULT_LANG],
+    fmt: makeFmt(lang),
+    dow: dowLabels(lang),
+    name: h => resolveName(h, lang),
+    country: code => {
+      const c = countries.find(x => x.code === code);
+      return c ? c.label : code;
+    },
+  }), [lang, countries]);
+  const { t, fmt } = i18n;
 
   useEffect(() => {
     let alive = true;
@@ -339,25 +894,23 @@ function App(){
       .then(r => { if(!r.ok) throw new Error(); return r.json(); })
       .then(list => {
         if(!alive) return;
-        const mapped = list.map(c => ({ code:c.countryCode, en:c.name, fr:frName(c.countryCode, c.name) }))
-                           .sort((a,b) => a.fr.localeCompare(b.fr,'fr'));
-        setCountries(mapped); setCstatus('ready');
+        setCountries(list.map(c => ({ code:c.countryCode, en:c.name })));
+        setCstatus('ready');
       })
       .catch(() => alive && setCstatus('error'));
     return () => { alive = false; };
   }, []);
 
+  /* noms de pays localisés, recalculés au changement de langue */
+  const localized = useMemo(() => countries
+    .map(c => ({ ...c, label: regionName(lang, c.code, c.en) }))
+    .sort((a,b) => a.label.localeCompare(b.label, localeOf(lang))), [countries, lang]);
+
   useEffect(() => {
     if (didInit.current || cstatus!=='ready') return;
     didInit.current = true;
-    const wanted = ['FR'];
-    const init = [];
-    wanted.forEach(code => {
-      const c = countries.find(x => x.code===code);
-      if (c) init.push({ code, name:c.fr, color:PALETTE[init.length] });
-    });
-    setSelected(init);
-  }, [cstatus, countries]);
+    setSelected([{ code:'FR', color:PALETTE[0] }]);
+  }, [cstatus]);
 
   useEffect(() => {
     const years = visibleYears(view, focus);
@@ -386,7 +939,7 @@ function App(){
       const c = byCode[key.split(':')[0]]; if(!c) continue;
       for (const h of list){
         if (!idx[h.date]) idx[h.date] = [];
-        idx[h.date].push({ code:c.code, name:c.name, color:c.color, h });
+        idx[h.date].push({ code:c.code, color:c.color, h });
       }
     }
     const rank = Object.fromEntries(selected.map((c,i)=>[c.code,i]));
@@ -395,12 +948,12 @@ function App(){
   }, [cache, selected]);
 
   const isSel = code => selected.some(c => c.code===code);
-  const toggle = c => {
-    if (isSel(c.code)) { setSelected(s => s.filter(x => x.code!==c.code)); return; }
+  const toggle = code => {
+    if (isSel(code)) { setSelected(s => s.filter(x => x.code!==code)); return; }
     setSelected(s => {
       const used = new Set(s.map(x => x.color));
       const color = PALETTE.find(p => !used.has(p)) || PALETTE[s.length % PALETTE.length];
-      return [...s, { code:c.code, name:c.fr, color }];
+      return [...s, { code, color }];
     });
   };
   const toggleFav = (code, e) => {
@@ -421,12 +974,15 @@ function App(){
 
   const filtered = useMemo(() => {
     const q = norm(query);
-    const base = countries.filter(c => !isSel(c.code));
-    const matched = q ? base.filter(c => norm(c.fr).includes(q) || norm(c.en).includes(q) || c.code.toLowerCase().includes(q)) : base;
+    const base = localized.filter(c => !isSel(c.code));
+    const matched = q ? base.filter(c => norm(c.label).includes(q) || norm(c.en).includes(q)
+                                      || c.code.toLowerCase().includes(q)) : base;
     return [...matched].sort(byFavFirst);
-  }, [countries, query, selected, favorites]);
+  }, [localized, query, selected, favorites]);
 
-  const selectedSorted = useMemo(() => [...selected].sort(byFavFirst), [selected, favorites]);
+  const selectedSorted = useMemo(() => [...selected]
+    .map(c => ({ ...c, label: i18n.country(c.code) }))
+    .sort(byFavFirst), [selected, favorites, i18n]);
 
   const step = dir => {
     const d = new Date(focus);
@@ -440,7 +996,7 @@ function App(){
     if (view==='day')  return cap(fmt(focus, {weekday:'long', day:'numeric', month:'long', year:'numeric'}));
     if (view==='week'){
       const s = startOfWeek(focus), e = addDays(s,6);
-      try { return new Intl.DateTimeFormat('fr-FR',{day:'numeric',month:'short',year:'numeric'}).formatRange(s,e); }
+      try { return new Intl.DateTimeFormat(localeOf(lang),{day:'numeric',month:'short',year:'numeric'}).formatRange(s,e); }
       catch (err) { return `${fmt(s,{day:'numeric',month:'short'})} – ${fmt(e,{day:'numeric',month:'short',year:'numeric'})}`; }
     }
     if (view==='month') return cap(fmt(focus, {month:'long', year:'numeric'}));
@@ -460,91 +1016,93 @@ function App(){
   };
 
   return (
+    <I18n.Provider value={i18n}>
     <div className="jf">
       <div className="jf-top">
         <div className="jf-brand">
           <span className="mark"><Globe size={17}/></span>
           <div>
-            <h1>Jours fériés dans le monde</h1>
-            <p>Planification multi-pays</p>
+            <h1>{t.title}</h1>
+            <p>{t.sub}</p>
           </div>
         </div>
         <button className="jf-railtoggle" onClick={()=>setRailOpen(o=>!o)}>
-          <CalendarDays size={15}/> Pays ({selected.length})
+          <CalendarDays size={15}/> {t.countriesBtn(selected.length)}
         </button>
         <div className="jf-seg" role="group" aria-label="Vue">
-          {[['day','Jour'],['week','Semaine'],['month','Mois'],['year','Année']].map(([v,l]) => (
+          {[['day',t.day],['week',t.week],['month',t.month],['year',t.year]].map(([v,l]) => (
             <button key={v} aria-pressed={view===v} onClick={()=>setView(v)}>{l}</button>
           ))}
         </div>
         <div className="jf-nav">
-          <button className="jf-ico" aria-label="Précédent" onClick={()=>step(-1)}><ChevronLeft size={18}/></button>
+          <button className="jf-ico" aria-label={t.prev} onClick={()=>step(-1)}><ChevronLeft size={18}/></button>
           <span className="period">{periodLabel()}</span>
-          <button className="jf-ico" aria-label="Suivant" onClick={()=>step(1)}><ChevronRight size={18}/></button>
-          <button className="jf-today" onClick={()=>setFocus(new Date())}>Aujourd’hui</button>
+          <button className="jf-ico" aria-label={t.next} onClick={()=>step(1)}><ChevronRight size={18}/></button>
+          <button className="jf-today" onClick={()=>setFocus(new Date())}>{t.today}</button>
         </div>
+        <LangPicker/>
       </div>
 
       <div className="jf-body">
         {railOpen && <div className="jf-scrim" onClick={()=>setRailOpen(false)} style={{zIndex:29}}/>}
 
         <aside className={'jf-rail'+(railOpen?' open':'')}>
-          <h2>Pays affichés <span className="count">{selected.length}</span></h2>
+          <h2>{t.railTitle} <span className="count">{selected.length}</span></h2>
           <div className="jf-search">
             <Search size={15}/>
-            <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Rechercher un pays…" />
+            <input value={query} onChange={e=>setQuery(e.target.value)} placeholder={t.searchPh} />
           </div>
-          {cstatus==='loading' && <div className="jf-group">Chargement des pays…</div>}
+          {cstatus==='loading' && <div className="jf-group">{t.loadingCountries}</div>}
           {cstatus==='error' && (
-            <div className="jf-railnote">Impossible de charger la liste des pays.
-              <br/><button className="jf-dlink" onClick={retry}>Réessayer</button></div>
+            <div className="jf-railnote">{t.countriesError}
+              <br/><button className="jf-dlink" onClick={retry}>{t.retry}</button></div>
           )}
           <div className="jf-list">
-            {selected.length>0 && <div className="jf-group">Sélectionnés</div>}
+            {selected.length>0 && <div className="jf-group">{t.groupSelected}</div>}
             {selectedSorted.map(c => (
-              <button key={c.code} className="jf-crow sel" onClick={()=>toggle({code:c.code})}>
+              <button key={c.code} className="jf-crow sel" onClick={()=>toggle(c.code)}>
                 <span className="swatch" style={{background:c.color}}/>
                 <Flag code={c.code}/>
-                <span className="cname">{c.name}</span>
-                <span className="jf-star" onClick={e=>toggleFav(c.code,e)} title="Favori">
+                <span className="cname">{c.label}</span>
+                <span className="jf-star" onClick={e=>toggleFav(c.code,e)} title={t.favorite}>
                   <StarIcon filled={favorites.has(c.code)}/>
                 </span>
                 <span className="rm"><X size={14}/></span>
               </button>
             ))}
-            {cstatus==='ready' && <div className="jf-group">Tous les pays</div>}
+            {cstatus==='ready' && <div className="jf-group">{t.groupAll}</div>}
             {filtered.map(c => (
-              <button key={c.code} className="jf-crow" onClick={()=>toggle(c)}>
+              <button key={c.code} className="jf-crow" onClick={()=>toggle(c.code)}>
                 <span className="jf-check"/>
                 <Flag code={c.code}/>
-                <span className="cname">{c.fr}</span>
-                <span className="jf-star" onClick={e=>toggleFav(c.code,e)} title="Favori">
+                <span className="cname">{c.label}</span>
+                <span className="jf-star" onClick={e=>toggleFav(c.code,e)} title={t.favorite}>
                   <StarIcon filled={favorites.has(c.code)}/>
                 </span>
                 <span className="code mono">{c.code}</span>
               </button>
             ))}
             {cstatus==='ready' && filtered.length===0 && query &&
-              <div className="jf-group">Aucun résultat pour « {query} ».</div>}
+              <div className="jf-group">{t.noResults(query)}</div>}
           </div>
           <div className="jf-railnote">
-            Week-ends grisés (<b>sam.–dim.</b>). Certains pays observent d’autres jours de repos.<br/>
-            Données : <b>Nager.Date</b>.
+            {t.railWknd} (<b>{t.railWkndSub}</b>). {t.railWkndNote}<br/>
+            {t.railData} : <b>Nager.Date</b>.
           </div>
         </aside>
 
         <main className="jf-main">
           {netError && (
             <div className="jf-banner">
-              <span>Certaines données n’ont pas pu être chargées (réseau).</span>
-              <button onClick={retry}>Réessayer</button>
+              <span>{t.netError}</span>
+              <button onClick={retry}>{t.retry}</button>
             </div>
           )}
           {selected.length===0 ? (
             <div className="jf-empty">
               <div>
                 <div className="ic"><CalendarDays size={22}/></div>
-                <p>Sélectionnez un ou plusieurs pays dans le panneau de gauche pour afficher leurs jours fériés.</p>
+                <p>{t.empty}</p>
               </div>
             </div>
           ) : view==='month' ? (
@@ -568,6 +1126,7 @@ function App(){
         )}
       </div>
     </div>
+    </I18n.Provider>
   );
 }
 
@@ -578,15 +1137,52 @@ function verdict(date, index, selected){
   const working = selected.filter(c => !offCodes.has(c.code));
   return { hits, off, working, total: selected.length };
 }
-const plural = (n, w) => `${n} ${w}${n>1?'s':''}`;
+
+/* Carte détaillée d'un jour férié : nom dans la langue choisie, nom local
+   quand il diffère, et lien Wikipédia suivant la même cascade. */
+function HolidayCard({ hit }){
+  const { t, lang, name, country } = useI18n();
+  const h = hit.h;
+  const base = name(h);
+  const wiki = useWiki(h, lang, true);
+  /* si la cascade est retombée sur l'anglais et que Wikipédia connaît un
+     titre dans la langue choisie, il devient le nom affiché */
+  const display = (base.tier !== 'target' && wiki && wiki.tier === 'target')
+    ? wiki.title : base.text;
+  const showLocal = h.localName && h.localName !== display && h.localName !== h.name;
+  const showEn = h.name && h.name !== display;
+  const link = wiki === undefined ? null
+    : wiki ? { url: wiki.url, label: wiki.tier === 'target' ? t.wiki : t.wikiEn }
+           : { url: wikiSearchUrl(lang, h.name || h.localName), label: t.wikiSearch };
+  return (
+    <div className="jf-hcard">
+      <Flag code={hit.code}/>
+      <div className="jf-hbody">
+        <div className="co">{country(hit.code)}</div>
+        <div className="nm">{display}
+          {h.global ? <span className="jf-badge">{t.national}</span>
+                    : <span className="jf-badge reg">{t.regional}</span>}
+        </div>
+        {showEn && <div className="en">{h.name}</div>}
+        {showLocal && <div className="en"><span className="lbl">{t.localNameLbl}</span> {h.localName}</div>}
+        {link && (
+          <a className="jf-wiki" href={link.url} target="_blank" rel="noopener noreferrer">
+            {link.label} <ExternalLink size={12}/>
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function MonthView({ focus, index, onDay }){
+  const { dow, name } = useI18n();
   const cells = monthGrid(focus);
   const month = focus.getMonth();
   const today = new Date();
   return (
     <>
-      <div className="jf-dow">{DOW.map(d => <span key={d}>{d}</span>)}</div>
+      <div className="jf-dow">{dow.short.map((d,i) => <span key={i}>{d}</span>)}</div>
       <div className="jf-month">
         {cells.map((d,i) => {
           const hits = index[ymd(d)] || [];
@@ -601,7 +1197,7 @@ function MonthView({ focus, index, onDay }){
                   {hits.length>5 && <span className="jf-more">+{hits.length-5}</span>}
                 </div>
               )}
-              {hits.length===1 && <span className="jf-tag"><span className="d" style={{background:hits[0].color}}/>{hits[0].h.localName}</span>}
+              {hits.length===1 && <span className="jf-tag"><span className="d" style={{background:hits[0].color}}/>{name(hits[0].h).text}</span>}
             </button>
           );
         })}
@@ -611,6 +1207,7 @@ function MonthView({ focus, index, onDay }){
 }
 
 function WeekView({ focus, index, onDay }){
+  const { dow, name, country } = useI18n();
   const start = startOfWeek(focus);
   const days = Array.from({length:7}, (_,i) => addDays(start,i));
   const today = new Date();
@@ -621,14 +1218,14 @@ function WeekView({ focus, index, onDay }){
         return (
           <div key={i} className={'jf-wcol'+(isWknd(d)?' wknd':'')}>
             <div className="jf-whead" onClick={()=>onDay(d)}>
-              <div className="dow">{DOW[i]}</div>
+              <div className="dow">{dow.short[i]}</div>
               <div className={'dn'+(sameDay(d,today)?' today':'')}>{d.getDate()}</div>
             </div>
             <div className="jf-wbody">
               {hits.map((x,j) => (
                 <button key={j} className="jf-bar" style={{borderLeftColor:x.color}} onClick={()=>onDay(d)}>
                   <Flag code={x.code}/>
-                  <span className="bn"><b>{x.name}</b><span>{x.h.localName}</span></span>
+                  <span className="bn"><b>{country(x.code)}</b><span>{name(x.h).text}</span></span>
                 </button>
               ))}
             </div>
@@ -640,41 +1237,29 @@ function WeekView({ focus, index, onDay }){
 }
 
 function DayView({ focus, index, selected }){
+  const { t, fmt, country } = useI18n();
   const { hits, off, working, total } = verdict(focus, index, selected);
   return (
     <div className="jf-day">
       <div className="jf-verdict">
         <div className="big">
-          {off.length===0
-            ? `Aucun pays férié — ${plural(total,'pays')} ouvré${total>1?'s':''}.`
-            : `${plural(off.length,'pays')} férié${off.length>1?'s':''} sur ${total} affiché${total>1?'s':''}.`}
-          {isWknd(focus) && <span className="wk">week-end</span>}
+          {off.length===0 ? t.verdictNone(total) : t.verdictSome(off.length, total)}
+          {isWknd(focus) && <span className="wk">{t.weekend}</span>}
         </div>
         <div className="sub">{cap(fmt(focus, {weekday:'long', day:'numeric', month:'long', year:'numeric'}))}</div>
       </div>
       {off.length>0 && (
         <div className="jf-daysec">
-          <div className="lbl">Fériés</div>
-          {hits.map((x,i) => (
-            <div key={i} className="jf-hcard">
-              <Flag code={x.code}/>
-              <div>
-                <div className="co">{x.name}</div>
-                <div className="nm">{x.h.localName}
-                  {x.h.global ? <span className="jf-badge">National</span> : <span className="jf-badge reg">Régional</span>}
-                </div>
-                {x.h.name && x.h.name!==x.h.localName && <div className="en">{x.h.name}</div>}
-              </div>
-            </div>
-          ))}
+          <div className="lbl">{t.secHoliday}</div>
+          {hits.map((x,i) => <HolidayCard key={i} hit={x}/>)}
         </div>
       )}
       {working.length>0 && (
         <div className="jf-daysec">
-          <div className="lbl">Ouvrés {isWknd(focus) && '(hors week-end éventuel)'}</div>
+          <div className="lbl">{t.secWorking} {isWknd(focus) && t.secWorkingNote}</div>
           <div className="jf-chips">
             {working.map(c => (
-              <span key={c.code} className="jf-chip"><Flag code={c.code}/>{c.name}</span>
+              <span key={c.code} className="jf-chip"><Flag code={c.code}/>{country(c.code)}</span>
             ))}
           </div>
         </div>
@@ -684,6 +1269,7 @@ function DayView({ focus, index, selected }){
 }
 
 function YearView({ focus, index, onDay }){
+  const { fmt, dow } = useI18n();
   const year = focus.getFullYear();
   const today = new Date();
   return (
@@ -694,7 +1280,7 @@ function YearView({ focus, index, onDay }){
           <div key={m} className="jf-mini">
             <div className="mtitle">{cap(fmt(new Date(year,m,1), {month:'long'}))}</div>
             <div className="jf-mgrid">
-              {DOW1.map((d,i) => <div key={'h'+i} className="h">{d}</div>)}
+              {dow.narrow.map((d,i) => <div key={'h'+i} className="h">{d}</div>)}
               {cells.map((d,i) => {
                 if(!d) return <span key={i} className="jf-mday empty"/>;
                 const hits = index[ymd(d)] || [];
@@ -717,42 +1303,30 @@ function YearView({ focus, index, onDay }){
 }
 
 function Drawer({ date, index, selected, onClose, onGoDay }){
+  const { t, fmt, country } = useI18n();
   const { hits, off, working, total } = verdict(date, index, selected);
   return (
-    <div className="jf-drawer" role="dialog" aria-label="Détail du jour">
+    <div className="jf-drawer" role="dialog" aria-label={t.drawerLabel}>
       <div className="jf-dhead">
         <div>
           <div className="dt">{cap(fmt(date, {weekday:'long', day:'numeric', month:'long', year:'numeric'}))}</div>
           <div className="vd">
-            {off.length===0 ? `Aucun pays férié sur ${total}.` : `${off.length} férié${off.length>1?'s':''} · ${working.length} ouvré${working.length>1?'s':''}`}
-            {isWknd(date) && ' · week-end'}
+            {off.length===0 ? t.drawerNone(total) : t.drawerSome(off.length, working.length)}
+            {isWknd(date) && ` · ${t.weekend}`}
           </div>
-          <button className="jf-dlink" onClick={onGoDay}>Ouvrir la vue Jour →</button>
+          <button className="jf-dlink" onClick={onGoDay}>{t.openDay}</button>
         </div>
-        <button className="jf-ico" aria-label="Fermer" onClick={onClose}><X size={18}/></button>
+        <button className="jf-ico" aria-label={t.close} onClick={onClose}><X size={18}/></button>
       </div>
       <div className="jf-dbody">
-        {off.length>0 ? hits.map((x,i) => (
-          <div key={i} className="jf-hcard">
-            <Flag code={x.code}/>
-            <div>
-              <div className="co">{x.name}</div>
-              <div className="nm">{x.h.localName}
-                {x.h.global ? <span className="jf-badge">National</span> : <span className="jf-badge reg">Régional</span>}
-              </div>
-              {x.h.name && x.h.name!==x.h.localName && <div className="en">{x.h.name}</div>}
-            </div>
-          </div>
-        )) : (
-          <p style={{color:'#5C6675', fontSize:13, margin:'2px 0 16px'}}>
-            Journée ouvrée dans tous les pays affichés.
-          </p>
-        )}
+        {off.length>0
+          ? hits.map((x,i) => <HolidayCard key={i} hit={x}/>)
+          : <p className="jf-dnote">{t.allWorking}</p>}
         {working.length>0 && (
           <>
-            <div style={{fontSize:12, color:'#98A1AD', margin:'14px 0 8px'}}>Ouvrés</div>
+            <div className="jf-dsec">{t.secWorking}</div>
             <div className="jf-chips">
-              {working.map(c => <span key={c.code} className="jf-chip"><Flag code={c.code}/>{c.name}</span>)}
+              {working.map(c => <span key={c.code} className="jf-chip"><Flag code={c.code}/>{country(c.code)}</span>)}
             </div>
           </>
         )}
