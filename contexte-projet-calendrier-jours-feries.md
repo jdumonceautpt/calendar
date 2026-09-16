@@ -146,7 +146,16 @@ luxembourgeois, et l'Afrique francophone (SN, CI, ML, CM, GA) en anglais. Les
 inscrire dans la liste `fr` afficherait la mauvaise langue. Ne pas « compléter »
 cette table sans vérifier pays par pays ce que renvoie réellement l'API.
 
-**Clés `localStorage` utilisées** : `jf-favorites`, `jf-lang`, `jf-wiki`, `jf-theme`.
+**Favoris : deux ensembles.** `jf-favorites` contient tous les favoris,
+`jf-favorites-auto` uniquement ceux posés par le choix de la langue. Au
+changement de langue, les automatiques de la langue précédente sont retirés et
+les manuels conservés ; un passage par l'étoile retire le pays de l'ensemble
+automatique, le rendant définitivement manuel. Les favoris antérieurs à cette
+distinction sont traités comme manuels, pour ne rien faire disparaître. La
+**sélection** de pays, elle, n'est pas touchée : seuls les favoris le sont.
+
+**Clés `localStorage` utilisées** : `jf-favorites`, `jf-favorites-auto`,
+`jf-lang`, `jf-wiki`, `jf-theme`.
 
 ## Bugs déjà rencontrés et corrigés (ne pas les réintroduire)
 
@@ -177,6 +186,37 @@ cette table sans vérifier pays par pays ce que renvoie réellement l'API.
    skill de design le signale comme marqueur d'interface générée, et la règle
    plafonne ce type de bordure à 1 px.
 
+## Détection des jours fériés reportés
+Badge « Reporté » et note donnant la date habituelle, dans la carte de détail
+(vue Jour et volet latéral). **L'API ne signale rien** : mesuré sur les 2 666
+entrées de 2026, le champ `fixed` vaut `false` partout, `types` n'en dit rien,
+et seules trois entrées portent une annotation dans leur nom — le 3 juillet
+américain s'appelle simplement « Independence Day ». Le report est donc calculé.
+
+Règle retenue : la date habituelle est la **(mois, jour) majoritaire sur cinq
+années** (`OBS_SPAN = 2`), exigée dans au moins trois d'entre elles. Un report
+est retenu quand le jour chômé tombe un vendredi ou un lundi, que la date
+habituelle tombe un week-end, et que l'écart ne dépasse pas trois jours.
+
+**Ne pas revenir à une comparaison avec une seule année voisine.** Cette
+première version, mesurée sur 30 pays, signalait **90 reports sur 447** jours
+fériés, contre **12** pour la version retenue. Les faux positifs venaient des
+fêtes du type « troisième lundi de janvier », qui se déplacent de quelques jours
+chaque année et dont l'année voisine tombe souvent un week-end : Martin Luther
+King Day, Labor Day, les anniversaires régionaux néo-zélandais, le Coming of Age
+Day japonais. Le mode sur cinq ans les écarte, ces fêtes n'ayant aucune date
+stable. Contre-exemple vérifié : Noël 2026 aux États-Unis tombe un vendredi sans
+être reporté et ne déclenche rien.
+
+Limite connue : pour une fête quasi fixe calée sur un terme solaire — Ching Ming
+à Hong Kong — le mode peut désigner une date habituelle décalée d'un jour. Le
+report lui-même est correctement identifié, c'est la date citée qui peut être
+approximative.
+
+Les années de référence ne sont demandées qu'à **l'ouverture d'un détail de
+journée** (quatre appels par pays, mis en cache pour la session) : la grille
+reste à un appel par pays et par année visible.
+
 ## Comportement qui ressemble à un bug mais n'en est pas un
 Le 4 juillet 2026 (Independence Day, US) tombe un samedi. La règle fédérale
 américaine (5 U.S.C. § 6103) reporte le jour chômé au vendredi précédent quand le
@@ -206,13 +246,15 @@ distinguer visuellement ces cas.
 
 ## Fichier de référence
 La dernière version fonctionnelle complète est celle déployée sur GitHub Pages
-à l'URL ci-dessus (`index.html`, ~1 930 lignes, HTML+CSS+JS en un seul fichier).
+à l'URL ci-dessus (`index.html`, ~2 150 lignes, HTML+CSS+JS en un seul fichier).
 
 ## Reste à faire
 Aucun chantier en cours. Idées évoquées, jamais construites : export `.ics`,
 bouton « prochain jour ouvré commun », ponts via l'endpoint `LongWeekend`,
-badge « Reporté » pour les jours fériés décalés, persistance de la sélection de
-pays entre sessions.
+persistance de la sélection de pays entre sessions.
+
+Question restée ouverte : au changement de langue, faut-il aussi **désélectionner**
+le pays de l'ancienne langue, et pas seulement le retirer des favoris ?
 
 Deux relectures qui demandent un œil humain : les libellés d'interface en
 es/de/it/pt, écrits sans relecture native, et les noms de jours fériés qui
