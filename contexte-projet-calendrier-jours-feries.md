@@ -146,13 +146,24 @@ luxembourgeois, et l'Afrique francophone (SN, CI, ML, CM, GA) en anglais. Les
 inscrire dans la liste `fr` afficherait la mauvaise langue. Ne pas « compléter »
 cette table sans vérifier pays par pays ce que renvoie réellement l'API.
 
-**Favoris : deux ensembles.** `jf-favorites` contient tous les favoris,
-`jf-favorites-auto` uniquement ceux posés par le choix de la langue. Au
-changement de langue, les automatiques de la langue précédente sont retirés et
-les manuels conservés ; un passage par l'étoile retire le pays de l'ensemble
-automatique, le rendant définitivement manuel. Les favoris antérieurs à cette
-distinction sont traités comme manuels, pour ne rien faire disparaître. La
-**sélection** de pays, elle, n'est pas touchée : seuls les favoris le sont.
+**Le pays de la langue suit la langue.** Le pays de référence de la langue
+active est le pays par défaut : il est **sélectionné et mis en favori** au choix
+de la langue, et il sort des deux au changement de langue.
+
+`jf-favorites` contient tous les favoris, `jf-favorites-auto` uniquement les pays
+ajoutés automatiquement par la langue. Seuls ces derniers sont retirés lors d'une
+bascule. **Toute action de l'utilisateur sur un pays le sort de l'ensemble
+automatique** — l'étoile comme la case à cocher, dans les deux sens : à partir de
+là il est géré à la main et aucun changement de langue ne le retirera, qu'il soit
+sélectionné ou non.
+
+Garde-fou à ne pas retirer : un pays **déjà étoilé à la main ne redevient pas
+automatique** quand on passe dans sa langue (variable `dejaManuel`). Sans lui,
+étoiler l'Espagne, passer en espagnol puis en allemand la retirait, alors qu'elle
+avait été choisie explicitement.
+
+Les favoris antérieurs à cette distinction sont traités comme manuels, pour ne
+rien faire disparaître.
 
 **Clés `localStorage` utilisées** : `jf-favorites`, `jf-favorites-auto`,
 `jf-lang`, `jf-wiki`, `jf-theme`.
@@ -253,8 +264,6 @@ Aucun chantier en cours. Idées évoquées, jamais construites : export `.ics`,
 bouton « prochain jour ouvré commun », ponts via l'endpoint `LongWeekend`,
 persistance de la sélection de pays entre sessions.
 
-Question restée ouverte : au changement de langue, faut-il aussi **désélectionner**
-le pays de l'ancienne langue, et pas seulement le retirer des favoris ?
 
 Deux relectures qui demandent un œil humain : les libellés d'interface en
 es/de/it/pt, écrits sans relecture native, et les noms de jours fériés qui
