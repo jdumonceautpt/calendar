@@ -823,10 +823,37 @@ const LS_LANG = 'jf-lang';
 const LS_WIKI = 'jf-wiki';
 const LS_THEME = 'jf-theme';
 const LS_FAV = 'jf-favorites';
-/* Pays ajoutés automatiquement par le choix de la langue — en favori ET en
-   sélection. Les distinguer permet de les retirer au changement de langue
-   sans toucher à ce que l'utilisateur a étoilé ou coché lui-même. */
-const LS_FAV_AUTO = 'jf-favorites-auto';
+/* Pays cochés automatiquement par le choix de la langue. Les favoris, eux,
+   n'appartiennent qu'à l'utilisateur : rien d'automatique ne les touche. */
+const LS_AUTO = 'jf-auto-select';
+const LS_FAV_AUTO_LEGACY = 'jf-favorites-auto';
+
+/* Lecture unique au démarrage. Une version antérieure étoilait
+   automatiquement le pays de la langue : ces favoris n'ont pas été choisis
+   par l'utilisateur, on les retire et on reprend la liste comme sélection
+   automatique. */
+function readFavorites(){
+  let fav = new Set(), auto = new Set();
+  try {
+    const raw = localStorage.getItem(LS_FAV);
+    if (raw) fav = new Set(JSON.parse(raw));
+  } catch (e) {}
+  try {
+    const raw = localStorage.getItem(LS_AUTO);
+    if (raw) {
+      auto = new Set(JSON.parse(raw));
+    } else {
+      const legacy = localStorage.getItem(LS_FAV_AUTO_LEGACY);
+      if (legacy) {
+        auto = new Set(JSON.parse(legacy));
+        auto.forEach(c => fav.delete(c));
+        localStorage.removeItem(LS_FAV_AUTO_LEGACY);
+      }
+    }
+  } catch (e) {}
+  return { fav, auto };
+}
+const BOOT_FAV = readFavorites();
 const THEMES = ['auto', 'light', 'dark'];
 
 /* Pays de référence de chaque langue : porte le drapeau du sélecteur, et
@@ -1579,23 +1606,11 @@ function App(){
   const [countries, setCountries] = useState([]);
   const [cstatus, setCstatus]   = useState('loading');
   const [selected, setSelected] = useState([]);
-  const [favorites, setFavorites] = useState(() => {
-    try {
-      const raw = localStorage.getItem(LS_FAV);
-      return raw ? new Set(JSON.parse(raw)) : new Set();
-    } catch (e) { return new Set(); }
-  });
-  /* Favoris issus du choix de la langue. Un favori absent de cet ensemble a
-     été posé à la main et survit aux changements de langue. Les favoris
-     antérieurs à cette distinction sont donc traités comme manuels : rien
-     de ce que l'utilisateur avait étoilé ne disparaît. */
-  const [autoFav, setAutoFav] = useState(() => {
-    try {
-      const raw = localStorage.getItem(LS_FAV_AUTO);
-      return raw ? new Set(JSON.parse(raw)) : new Set();
-    } catch (e) { return new Set(); }
-  });
-  const autoFavRef = useRef(autoFav);
+  const [favorites, setFavorites] = useState(() => new Set(BOOT_FAV.fav));
+  /* Pays cochés par le choix de la langue, et eux seuls : ce sont les seuls
+     que le changement de langue décoche. */
+  const [autoSel, setAutoSel] = useState(() => new Set(BOOT_FAV.auto));
+  const autoSelRef = useRef(autoSel);
   const [view, setView]   = useState('month');
   const [focus, setFocus] = useState(new Date());
   const [query, setQuery] = useState('');
@@ -1671,18 +1686,12 @@ function App(){
     const code = LANG_COUNTRY[lang];
     if (!code) return;
     /* Si l'utilisateur avait déjà étoilé ou coché ce pays lui-même, il ne
-       redevient pas « automatique » : sinon un changement de langue suivant
-       le retirerait alors qu'il l'avait choisi explicitement. */
-    const dejaManuel = !autoFavRef.current.has(code)
+       devient pas « automatique » : sinon un changement de langue suivant le
+       décocherait alors qu'il l'avait choisi explicitement. */
+    const dejaManuel = !autoSelRef.current.has(code)
       && (favorites.has(code) || selected.some(c => c.code === code));
-    const sortants = [...autoFavRef.current].filter(c => c !== code);
-    setFavorites(prev => {
-      const next = new Set(prev);
-      sortants.forEach(c => next.delete(c));
-      next.add(code);
-      return next;
-    });
-    setAutoFav(dejaManuel ? new Set() : new Set([code]));
+    const sortants = [...autoSelRef.current].filter(c => c !== code);
+    setAutoSel(dejaManuel ? new Set() : new Set([code]));
     setSelected(s => {
       const reste = s.filter(c => !sortants.includes(c.code));
       if (reste.some(c => c.code === code)) return reste;
@@ -1690,6 +1699,8 @@ function App(){
       const color = PALETTE.find(p => !used.has(p)) || PALETTE[reste.length % PALETTE.length];
       return [...reste, { code, color }];
     });
+    /* Les favoris ne sont volontairement pas touchés : la langue coche son
+       pays, elle ne l'étoile pas. */
   }, [cstatus, lang]);
 
   useEffect(() => {
@@ -1731,7 +1742,7 @@ function App(){
   /* Cocher ou décocher un pays le sort de l'ensemble automatique, comme le
      fait l'étoile : à partir de là c'est l'utilisateur qui le gère, et un
      changement de langue ne le retirera plus. */
-  const manuel = code => setAutoFav(prev => {
+  const manuel = code => setAutoSel(prev => {
     if (!prev.has(code)) return prev;
     const next = new Set(prev);
     next.delete(code);
@@ -1753,17 +1764,17 @@ function App(){
       next.has(code) ? next.delete(code) : next.add(code);
       return next;
     });
-    /* un passage par l'étoile rend le pays manuel : il ne sera plus retiré
-       au changement de langue, ni des favoris ni de la sélection */
+    /* un passage par l'étoile rend le pays manuel : il ne sera plus décoché
+       au changement de langue */
     manuel(code);
   };
   useEffect(() => {
     try { localStorage.setItem(LS_FAV, JSON.stringify([...favorites])); } catch (e) {}
   }, [favorites]);
   useEffect(() => {
-    autoFavRef.current = autoFav;
-    try { localStorage.setItem(LS_FAV_AUTO, JSON.stringify([...autoFav])); } catch (e) {}
-  }, [autoFav]);
+    autoSelRef.current = autoSel;
+    try { localStorage.setItem(LS_AUTO, JSON.stringify([...autoSel])); } catch (e) {}
+  }, [autoSel]);
   const byFavFirst = (a, b) => {
     const fa = favorites.has(a.code), fb = favorites.has(b.code);
     return fa===fb ? 0 : fa ? -1 : 1;
