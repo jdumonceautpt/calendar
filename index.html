@@ -51,6 +51,10 @@
   --star:          #B8860B;
   --star-soft:     #F6EED8;
 
+  --weekend:       #DDE4EE;
+  --weekend-out:   #EEF1F6;
+  --weekend-hover: #D0D9E6;
+
   --ring:          #1B7C86;   /* anneau de focus */
   --dot-ring:      #FFFFFF;   /* liseré des pastilles, = surface */
   --flag-edge:     rgba(23,30,40,.14);
@@ -117,6 +121,10 @@
     --star:          #D8A93A;
     --star-soft:     #2C2415;
 
+    --weekend:       #2B3542;
+    --weekend-out:   #1F2731;
+    --weekend-hover: #333E4D;
+
     --ring:          #4FB6C2;
     --dot-ring:      #171D24;
     --flag-edge:     rgba(255,255,255,.18);
@@ -166,6 +174,10 @@
   --star:          #D8A93A;
   --star-soft:     #2C2415;
 
+  --weekend:       #2B3542;
+  --weekend-out:   #1F2731;
+  --weekend-hover: #333E4D;
+
   --ring:          #4FB6C2;
   --dot-ring:      #171D24;
   --flag-edge:     rgba(255,255,255,.18);
@@ -211,11 +223,16 @@ body { background:var(--bg); }
    En-tête
    ============================================================ */
 .jf-top {
-  display:flex; align-items:center; gap:14px; padding:10px 16px;
+  display:grid; grid-template-columns:1fr auto 1fr; align-items:center;
+  gap:14px; row-gap:10px; padding:10px 16px;
   background:var(--surface); border-bottom:1px solid var(--border);
-  flex-wrap:wrap; row-gap:10px;
 }
-.jf-brand { display:flex; align-items:center; gap:10px; margin-right:auto; min-width:0; }
+/* Trois colonnes plutôt qu'un flex : la colonne centrale est alors centrée
+   sur la fenêtre, pas repoussée au milieu par la largeur des voisines. */
+.jf-left   { display:flex; align-items:center; gap:10px; min-width:0; }
+.jf-center { display:flex; align-items:center; gap:10px; justify-content:center; min-width:0; }
+.jf-right  { display:flex; align-items:center; gap:10px; justify-content:flex-end; min-width:0; }
+.jf-brand { display:flex; align-items:center; gap:10px; min-width:0; }
 .jf-brand .mark {
   width:30px; height:30px; border-radius:var(--r-md); flex:none;
   background:var(--accent); color:var(--on-accent);
@@ -227,7 +244,6 @@ body { background:var(--bg); }
 }
 .jf-brand p { font-size:var(--fs-xs); color:var(--text-3); margin:2px 0 0; white-space:nowrap; }
 
-.jf-topright { display:flex; align-items:center; gap:10px; flex-wrap:wrap; row-gap:10px; }
 .jf-sep { width:1px; height:22px; background:var(--border); flex:none; }
 
 .jf-seg {
@@ -425,6 +441,7 @@ body { background:var(--bg); }
   font-size:var(--fs-xs); color:var(--text-3); text-align:left; padding:0 7px;
   font-weight:500; letter-spacing:.03em;
 }
+.jf-dow span.we { color:var(--text-2); font-weight:600; }
 .jf-month {
   display:grid; grid-template-columns:repeat(7,1fr); grid-auto-rows:minmax(82px,1fr);
   gap:1px; background:var(--divider); border:1px solid var(--border);
@@ -435,14 +452,22 @@ body { background:var(--bg); }
   padding:6px 7px; display:flex; flex-direction:column; gap:6px; position:relative;
   transition:background .12s ease;
 }
-.jf-cell:hover { background:var(--surface-3); }
-.jf-cell.out { background:var(--surface-2); }
-.jf-cell.out .dnum { color:var(--text-3); }
-.jf-cell.wknd { background:var(--surface-3); }
-.jf-cell.wknd.out { background:var(--surface-2); }
-.jf-cell.holiday { background:var(--holiday-bg); }
-.jf-cell.holiday:hover { background:var(--holiday-bg); box-shadow:inset 0 0 0 1px var(--holiday-line); }
-.jf-cell.today { background:var(--today-bg); box-shadow:inset 0 0 0 1px var(--today-line); }
+/* :where() met toutes ces règles à la même spécificité : c'est alors
+   l'ordre d'écriture seul qui décide, et « aujourd'hui » peut primer sur
+   « férié », qui prime sur « week-end », sans empilement de sélecteurs. */
+.jf-cell:where(:hover) { background:var(--surface-3); }
+.jf-cell:where(.out) { background:var(--surface-2); }
+.jf-cell:where(.out) .dnum { color:var(--text-2); }
+.jf-cell:where(.wknd) { background:var(--weekend); }
+.jf-cell:where(.wknd:hover) { background:var(--weekend-hover); }
+.jf-cell:where(.wknd.out) { background:var(--weekend-out); }
+.jf-cell:where(.wknd.out:hover) { background:var(--weekend-hover); }
+.jf-cell:where(.holiday) { background:var(--holiday-bg); }
+.jf-cell:where(.holiday:hover) {
+  background:var(--holiday-bg); box-shadow:inset 0 0 0 1px var(--holiday-line);
+}
+.jf-cell:where(.today) { background:var(--today-bg); box-shadow:inset 0 0 0 1px var(--today-line); }
+.jf-cell:where(.today:hover) { background:var(--today-bg); }
 .jf-cell .dnum {
   font-size:var(--fs-base); color:var(--text); font-weight:500; line-height:1;
   width:23px; height:21px; display:grid; place-items:center; border-radius:var(--r-sm);
@@ -451,7 +476,7 @@ body { background:var(--bg); }
 .jf-cell.today .dnum { background:var(--accent); color:var(--on-accent); font-weight:600; }
 .jf-dots { display:flex; flex-wrap:wrap; gap:4px; align-content:flex-start; }
 .jf-dot { width:10px; height:10px; border-radius:50%; box-shadow:0 0 0 1.5px var(--dot-ring); }
-.jf-more { font-size:10px; color:var(--text-3); line-height:10px; font-variant-numeric:tabular-nums; }
+.jf-more { font-size:10px; color:var(--text-2); line-height:10px; font-variant-numeric:tabular-nums; }
 .jf-tag {
   font-size:var(--fs-xs); color:var(--text-2); display:flex; align-items:center; gap:5px;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:auto;
@@ -464,13 +489,14 @@ body { background:var(--bg); }
   border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden; min-height:66vh;
 }
 .jf-wcol { background:var(--surface); display:flex; flex-direction:column; min-height:0; }
-.jf-wcol.wknd { background:var(--surface-3); }
+.jf-wcol.wknd { background:var(--weekend); }
 .jf-whead {
   padding:9px 10px; border-bottom:1px solid var(--divider); cursor:pointer;
   transition:background .12s ease;
 }
 .jf-whead:hover { background:var(--surface-3); }
 .jf-whead .dow { font-size:var(--fs-xs); color:var(--text-3); letter-spacing:.03em; }
+.jf-whead .dow.we { color:var(--text-2); font-weight:600; }
 .jf-whead .dn { font-size:var(--fs-xl); font-weight:600; font-variant-numeric:tabular-nums; letter-spacing:-0.02em; }
 .jf-whead .dn.today {
   color:var(--on-accent); background:var(--accent); width:28px; height:28px;
@@ -569,17 +595,19 @@ body { background:var(--bg); }
 }
 .jf-mgrid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
 .jf-mgrid .h { font-size:9.5px; color:var(--text-3); text-align:center; padding-bottom:3px; font-weight:500; }
+.jf-mgrid .h.we { color:var(--text-2); font-weight:700; }
 .jf-mday {
   aspect-ratio:1; border:0; background:transparent; font-size:var(--fs-xs);
   color:var(--text-2); cursor:pointer; border-radius:var(--r-sm); display:flex;
   flex-direction:column; align-items:center; justify-content:center; gap:1px; padding:0;
   font-variant-numeric:tabular-nums; transition:background .12s ease;
 }
-.jf-mday:hover { background:var(--surface-3); color:var(--text); }
+.jf-mday:where(:hover) { background:var(--surface-3); color:var(--text); }
 .jf-mday.empty { cursor:default; }
-.jf-mday.wknd { color:var(--text-3); }
-.jf-mday.holiday { background:var(--holiday-bg); color:var(--text); }
-.jf-mday.today { background:var(--accent); color:var(--on-accent); font-weight:600; }
+.jf-mday:where(.wknd) { color:var(--text-2); background:var(--weekend); }
+.jf-mday:where(.wknd:hover) { background:var(--weekend-hover); color:var(--text); }
+.jf-mday:where(.holiday) { background:var(--holiday-bg); color:var(--text); }
+.jf-mday:where(.today) { background:var(--accent); color:var(--on-accent); font-weight:600; }
 .jf-mday .mdots { display:flex; gap:2px; height:5px; }
 .jf-mday .mdot { width:5px; height:5px; border-radius:50%; }
 
@@ -652,6 +680,14 @@ body { background:var(--bg); }
 @media (max-width:1180px) {
   .jf-year { grid-template-columns:repeat(3,1fr); }
 }
+/* En dessous de ~1100 px les trois colonnes ne tiennent plus sur une
+   rangée : le bloc central descend sur sa propre ligne, toujours centré. */
+@media (max-width:1100px) {
+  .jf-top { grid-template-columns:1fr auto; }
+  .jf-left   { grid-column:1; grid-row:1; }
+  .jf-right  { grid-column:2; grid-row:1; }
+  .jf-center { grid-column:1 / -1; grid-row:2; }
+}
 @media (max-width:980px) {
   .jf-brand p { display:none; }
   .jf-nav .period { min-width:150px; }
@@ -670,8 +706,6 @@ body { background:var(--bg); }
 @media (max-width:720px) {
   .jf-top { gap:8px; padding:9px 12px; row-gap:8px; }
   .jf-brand h1 { font-size:var(--fs-base); }
-  .jf-topright { width:100%; justify-content:space-between; gap:8px; }
-  .jf-nav { order:-1; width:100%; justify-content:space-between; }
   .jf-nav .period { min-width:0; flex:1; }
   .jf-sep { display:none; }
   /* le libellé de langue cède la place : le drapeau suffit à identifier
@@ -686,8 +720,8 @@ body { background:var(--bg); }
   }
   .jf-themecycle:hover { background:var(--surface-3); color:var(--text); }
   /* dvh tient compte de la barre d'adresse mobile ; vh sert de repli */
-  .jf-month, .jf-week { min-height:calc(100vh - 200px); }
-  .jf-month, .jf-week { min-height:calc(100dvh - 200px); }
+  .jf-month, .jf-week { min-height:calc(100vh - 215px); }
+  .jf-month, .jf-week { min-height:calc(100dvh - 215px); }
   .jf-month { grid-auto-rows:minmax(64px,1fr); }
   .jf-cell { padding:5px; gap:4px; }
   .jf-cell .dnum { width:21px; height:19px; font-size:var(--fs-sm); }
@@ -708,8 +742,12 @@ body { background:var(--bg); }
 }
 @media (max-width:520px) {
   .jf-year { grid-template-columns:1fr; }
-  .jf-seg button { padding:5px 9px; font-size:var(--fs-sm); }
   .jf-verdict { padding:14px 15px; }
+  /* sélection de vue et navigation ne tiennent plus côte à côte */
+  .jf-center { flex-direction:column; align-items:stretch; gap:8px; }
+  .jf-nav { order:-1; justify-content:space-between; }
+  .jf-seg { display:flex; }
+  .jf-seg button { flex:1; padding:5px 6px; font-size:var(--fs-sm); text-align:center; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1632,17 +1670,19 @@ function App(){
     <I18n.Provider value={i18n}>
     <div className="jf">
       <div className="jf-top">
-        <div className="jf-brand">
-          <span className="mark"><Globe size={17}/></span>
-          <div>
-            <h1>{t.title}</h1>
-            <p>{t.sub}</p>
+        <div className="jf-left">
+          <div className="jf-brand">
+            <span className="mark"><Globe size={17}/></span>
+            <div>
+              <h1>{t.title}</h1>
+              <p>{t.sub}</p>
+            </div>
           </div>
+          <button className="jf-railtoggle" onClick={()=>setRailOpen(o=>!o)}>
+            <CalendarDays size={15}/> {t.countriesBtn(selected.length)}
+          </button>
         </div>
-        <button className="jf-railtoggle" onClick={()=>setRailOpen(o=>!o)}>
-          <CalendarDays size={15}/> {t.countriesBtn(selected.length)}
-        </button>
-        <div className="jf-topright">
+        <div className="jf-center">
           <div className="jf-seg" role="group" aria-label={t.view}>
             {[['day',t.day],['week',t.week],['month',t.month],['year',t.year]].map(([v,l]) => (
               <button key={v} aria-pressed={view===v} onClick={()=>setView(v)}>{l}</button>
@@ -1654,9 +1694,11 @@ function App(){
             <button className="jf-ico" aria-label={t.next} onClick={()=>step(1)}><ChevronRight size={17}/></button>
             <button className="jf-today" onClick={()=>setFocus(new Date())}>{t.today}</button>
           </div>
+        </div>
+        <div className="jf-right">
+          <ThemeToggle/>
           <div className="jf-sep"/>
           <LangPicker/>
-          <ThemeToggle/>
         </div>
       </div>
 
@@ -1808,7 +1850,9 @@ function MonthView({ focus, index, onDay }){
   const today = new Date();
   return (
     <>
-      <div className="jf-dow">{dow.short.map((d,i) => <span key={i}>{d}</span>)}</div>
+      <div className="jf-dow">
+        {dow.short.map((d,i) => <span key={i} className={i>4 ? 'we' : undefined}>{d}</span>)}
+      </div>
       <div className="jf-month">
         {cells.map((d,i) => {
           const hits = index[ymd(d)] || [];
@@ -1844,7 +1888,7 @@ function WeekView({ focus, index, onDay }){
         return (
           <div key={i} className={'jf-wcol'+(isWknd(d)?' wknd':'')}>
             <div className="jf-whead" onClick={()=>onDay(d)}>
-              <div className="dow">{dow.short[i]}</div>
+              <div className={'dow'+(i>4 ? ' we' : '')}>{dow.short[i]}</div>
               <div className={'dn'+(sameDay(d,today)?' today':'')}>{d.getDate()}</div>
             </div>
             <div className="jf-wbody">
@@ -1907,7 +1951,7 @@ function YearView({ focus, index, onDay }){
           <div key={m} className="jf-mini">
             <div className="mtitle">{cap(fmt(new Date(year,m,1), {month:'long'}))}</div>
             <div className="jf-mgrid">
-              {dow.narrow.map((d,i) => <div key={'h'+i} className="h">{d}</div>)}
+              {dow.narrow.map((d,i) => <div key={'h'+i} className={'h'+(i>4 ? ' we' : '')}>{d}</div>)}
               {cells.map((d,i) => {
                 if(!d) return <span key={i} className="jf-mday empty"/>;
                 const hits = index[ymd(d)] || [];
