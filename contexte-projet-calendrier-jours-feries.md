@@ -80,10 +80,39 @@ icônes. Contrastes mesurés après correction : texte 14,3:1, secondaire 7,5:1,
 tertiaire 5,7:1, placeholder sur champ 5,1:1, accent 8,6:1, blanc sur accent
 5,65:1. **Ne jamais utiliser `--glyph` pour du texte.**
 
+**Week-ends : le thème sombre va dans l'autre sens.** Jetons dédiés
+`--weekend` / `--weekend-out` / `--weekend-hover`. En thème clair le week-end
+est plus foncé que le jour ouvré (ratio 1,28, écart de clarté 9,7 points L*).
+En thème sombre il est plus **clair** : assombrir n'offre pas de marge quand le
+fond est déjà à L\* 11 — un premier essai en plus foncé ne gagnait que
+1,098 → 1,118, contre 1,098 → **1,366** en éclaircissant. Ne pas « harmoniser »
+les deux directions, ce serait revenir à un écart invisible. Conséquence de ces
+fonds plus marqués : le numéro des jours hors mois et l'indicateur « +N »
+utilisent `--text-2` et non `--text-3`, sinon ils tombent sous 4,5:1.
+
+**États des cellules et spécificité.** Les règles `.jf-cell` et `.jf-mday`
+passent par `:where()` pour aplatir la spécificité : l'ordre d'écriture seul
+décide, et « aujourd'hui » prime sur « férié », qui prime sur « week-end ».
+Sans cela, `.jf-cell.wknd.out` (trois classes) battait `.jf-cell.holiday`
+(deux classes) et un jour férié tombant un week-end hors mois s'affichait en
+gris. Ne pas réintroduire de sélecteurs composés ici.
+
 ## Adaptation aux écrans
-Points de rupture : 1180 (année sur 3 colonnes), 980 (sous-titre masqué),
-880 (colonne latérale en tiroir), 720 (téléphone), 520 (année sur 1 colonne),
-plus un bloc `pointer: coarse` qui agrandit les cibles tactiles.
+L'en-tête est une **grille en trois colonnes** (`1fr auto 1fr`) : le bloc central
+— sélection de vue, libellé de période, bouton « aujourd'hui » — est ainsi centré
+sur la fenêtre et non repoussé au milieu par la largeur de ses voisins (mesuré à
+640 px sur 1280, écart nul). Bascule de thème puis sélecteur de langue à droite,
+dans cet ordre.
+
+Points de rupture : 1180 (année sur 3 colonnes), 1100 (le bloc central descend
+sur sa propre rangée), 980 (sous-titre masqué), 880 (colonne latérale en tiroir),
+720 (téléphone), 520 (navigation et sélection de vue empilées, cette dernière en
+pleine largeur), plus un bloc `pointer: coarse` qui agrandit les cibles tactiles.
+
+**Les rangées de grille sont épinglées explicitement** (`grid-row`) sous 1100 px.
+Le placement automatique traite les éléments dans l'ordre du DOM : le bloc central,
+qui occupe toute la largeur, poussait le bloc droit à une quatrième rangée et
+faisait passer l'en-tête de 132 à 171 px sur téléphone.
 
 À 375 px, l'en-tête fait **132 px** de haut (contre ~350 avant réorganisation)
 et la grille occupe le reste (778 px sur 812). Deux arbitrages qui l'expliquent,
