@@ -883,7 +883,7 @@ function App(){
     name: h => resolveName(h, lang),
     country: code => {
       const c = countries.find(x => x.code === code);
-      return c ? c.label : code;
+      return c ? regionName(lang, c.code, c.en) : code;
     },
   }), [lang, countries]);
   const { t, fmt } = i18n;
