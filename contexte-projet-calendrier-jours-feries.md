@@ -84,7 +84,7 @@ tertiaire 5,7:1, placeholder sur champ 5,1:1, accent 8,6:1, blanc sur accent
 `--weekend` / `--weekend-out` / `--weekend-hover`. En thème clair le week-end
 est plus foncé que le jour ouvré (ratio 1,28, écart de clarté 9,7 points L*).
 En thème sombre il est plus **clair** : assombrir n'offre pas de marge quand le
-fond est déjà à L\* 11 — un premier essai en plus foncé ne gagnait que
+fond est déjà à L* 11 — un premier essai en plus foncé ne gagnait que
 1,098 → 1,118, contre 1,098 → **1,366** en éclaircissant. Ne pas « harmoniser »
 les deux directions, ce serait revenir à un écart invisible. Conséquence de ces
 fonds plus marqués : le numéro des jours hors mois et l'indicateur « +N »
