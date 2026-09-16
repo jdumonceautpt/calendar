@@ -564,6 +564,14 @@ body { background:var(--bg); }
   font-weight:500; white-space:nowrap;
 }
 .jf-badge.reg { background:var(--warn-bg); color:var(--warn-ink); }
+.jf-badge.shift { background:var(--surface-3); color:var(--text-2); border:1px solid var(--border); }
+.jf-obs {
+  display:flex; align-items:flex-start; gap:7px; margin:8px 0 0;
+  padding:7px 9px; border-radius:var(--r-md);
+  background:var(--surface-3); border:1px solid var(--border);
+  font-size:var(--fs-sm); color:var(--text-2); line-height:1.45;
+}
+.jf-obs svg { flex:none; margin-top:1px; color:var(--text-3); }
 .jf-wiki {
   display:inline-flex; align-items:center; gap:5px; font-size:var(--fs-sm);
   color:var(--accent-ink); text-decoration:none; margin-top:8px;
@@ -780,6 +788,7 @@ const Search = ({size}) => <Svg size={size}><circle cx="11" cy="11" r="8"/><line
 const X = ({size}) => <Svg size={size}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></Svg>;
 const Globe = ({size}) => <Svg size={size}><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></Svg>;
 const CalendarDays = ({size}) => <Svg size={size}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></Svg>;
+const Info = ({size}) => <Svg size={size}><circle cx="12" cy="12" r="10"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="12" y1="8" x2="12" y2="8"/></Svg>;
 const Check = ({size}) => <Svg size={size}><polyline points="20 6 9 17 4 12"/></Svg>;
 const Sun = ({size}) => <Svg size={size}><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.9" y1="4.9" x2="6.3" y2="6.3"/><line x1="17.7" y1="17.7" x2="19.1" y2="19.1"/><line x1="4.9" y1="19.1" x2="6.3" y2="17.7"/><line x1="17.7" y1="6.3" x2="19.1" y2="4.9"/></Svg>;
 const Moon = ({size}) => <Svg size={size}><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.6 6.6 0 0 0 9.8 9.8z"/></Svg>;
@@ -813,6 +822,11 @@ const DEFAULT_LANG = 'fr';
 const LS_LANG = 'jf-lang';
 const LS_WIKI = 'jf-wiki';
 const LS_THEME = 'jf-theme';
+const LS_FAV = 'jf-favorites';
+/* Favoris posés automatiquement par le choix de la langue. Les distinguer
+   permet de les retirer au changement de langue sans toucher à ceux que
+   l'utilisateur a étoilés lui-même. */
+const LS_FAV_AUTO = 'jf-favorites-auto';
 const THEMES = ['auto', 'light', 'dark'];
 
 /* Pays de référence de chaque langue : porte le drapeau du sélecteur, et
@@ -862,6 +876,8 @@ const UI = {
     localNameLbl:'Nom local',
     theme:'Thème', themeAuto:'Système', themeLight:'Clair', themeDark:'Sombre',
     view:'Vue', emptyTitle:'Aucun pays affiché',
+    observed:'Reporté',
+    observedNote:d=>`Date habituelle : ${d}, qui tombe un week-end. Le jour chômé est décalé.`,
   },
   en: {
     title:'Public holidays worldwide', sub:'Multi-country planning',
@@ -890,6 +906,8 @@ const UI = {
     localNameLbl:'Local name',
     theme:'Theme', themeAuto:'System', themeLight:'Light', themeDark:'Dark',
     view:'View', emptyTitle:'No country shown',
+    observed:'Observed',
+    observedNote:d=>`Usual date: ${d}, which falls on a weekend. The day off is shifted.`,
   },
   es: {
     title:'Días festivos en el mundo', sub:'Planificación multipaís',
@@ -918,6 +936,8 @@ const UI = {
     localNameLbl:'Nombre local',
     theme:'Tema', themeAuto:'Sistema', themeLight:'Claro', themeDark:'Oscuro',
     view:'Vista', emptyTitle:'Ningún país mostrado',
+    observed:'Trasladado',
+    observedNote:d=>`Fecha habitual: ${d}, que cae en fin de semana. El día festivo se traslada.`,
   },
   de: {
     title:'Feiertage weltweit', sub:'Länderübergreifende Planung',
@@ -946,6 +966,8 @@ const UI = {
     localNameLbl:'Landessprachlicher Name',
     theme:'Thema', themeAuto:'System', themeLight:'Hell', themeDark:'Dunkel',
     view:'Ansicht', emptyTitle:'Kein Land ausgewählt',
+    observed:'Verlegt',
+    observedNote:d=>`Üblicher Termin: ${d}, ein Wochenende. Der freie Tag wird verschoben.`,
   },
   it: {
     title:'Giorni festivi nel mondo', sub:'Pianificazione multipaese',
@@ -974,6 +996,8 @@ const UI = {
     localNameLbl:'Nome locale',
     theme:'Tema', themeAuto:'Sistema', themeLight:'Chiaro', themeDark:'Scuro',
     view:'Vista', emptyTitle:'Nessun paese visualizzato',
+    observed:'Spostato',
+    observedNote:d=>`Data consueta: ${d}, che cade nel fine settimana. Il giorno festivo è spostato.`,
   },
   pt: {
     title:'Feriados no mundo', sub:'Planeamento multipaís',
@@ -1002,6 +1026,8 @@ const UI = {
     localNameLbl:'Nome local',
     theme:'Tema', themeAuto:'Sistema', themeLight:'Claro', themeDark:'Escuro',
     view:'Vista', emptyTitle:'Nenhum país exibido',
+    observed:'Transferido',
+    observedNote:d=>`Data habitual: ${d}, que cai num fim de semana. O feriado é transferido.`,
   },
 };
 
@@ -1321,6 +1347,85 @@ function useWiki(h, lang, active){
   return res;
 }
 
+/* ---- détection des jours fériés reportés ----
+   Nager.Date ne le signale pas : sur les 2 666 entrées de 2026, le champ
+   `fixed` vaut false partout, `types` n'en dit rien, et seules trois entrées
+   portent une annotation dans leur nom. Le report se déduit donc.
+
+   Signature retenue : le jour chômé tombe un vendredi ou un lundi, et la
+   date qu'occupe le même jour férié une année voisine tombe un week-end à
+   un ou deux jours de là. Le plafond de deux jours est ce qui évite de
+   confondre avec les fêtes mobiles — Pâques et ses dérivés se déplacent de
+   plusieurs semaines d'une année à l'autre, jamais de un ou deux jours. */
+const parseYmd = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+
+const yearCache = {};
+function fetchYear(code, year){
+  const key = `${code}:${year}`;
+  if (!yearCache[key]) {
+    yearCache[key] = fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/${code}`)
+      .then(r => r.ok ? r.json() : [])
+      .catch(() => []);
+  }
+  return yearCache[key];
+}
+
+/* La date habituelle est la (mois, jour) majoritaire sur cinq années.
+   Une première version comparait à une seule année voisine : elle signalait
+   90 reports sur 447 jours fériés au lieu de 12, parce que les fêtes du type
+   « troisième lundi de janvier » se déplacent de quelques jours chaque année
+   et qu'une année voisine tombe souvent un week-end. Le mode les écarte :
+   elles n'ont aucune date stable. */
+const OBS_SPAN = 2;
+
+function naturalDate(lists, key, year){
+  const tally = {};
+  for (const list of lists){
+    for (const h of list){
+      if (normKey(h.name) !== key) continue;
+      const d = parseYmd(h.date);
+      const k = d.getMonth() + '-' + d.getDate();
+      tally[k] = (tally[k] || 0) + 1;
+      break;
+    }
+  }
+  let best = null, count = 0;
+  for (const k of Object.keys(tally)) if (tally[k] > count){ count = tally[k]; best = k; }
+  if (!best || count < 3) return null;   // aucune date stable : fête mobile
+  const [m, day] = best.split('-').map(Number);
+  const nat = new Date(year, m, day);
+  return nat.getMonth() === m ? nat : null;   // écarte un 29 février inexistant
+}
+
+/* Les années de référence ne sont demandées qu'à l'ouverture d'un détail de
+   journée, et mises en cache pour la session : la grille ne déclenche aucun
+   appel supplémentaire. */
+function useObserved(h, active){
+  const [res, setRes] = useState(null);
+  const date = h && h.date, code = h && h.countryCode, name = h && h.name;
+  useEffect(() => {
+    if (!active || !date){ setRes(null); return; }
+    const d = parseYmd(date);
+    const wd = d.getDay();
+    if (wd !== 1 && wd !== 5){ setRes(null); return; }   // ni lundi ni vendredi
+    let alive = true;
+    const y = d.getFullYear();
+    const years = [];
+    for (let i = -OBS_SPAN; i <= OBS_SPAN; i++) years.push(y + i);
+    Promise.all(years.map(yy => fetchYear(code, yy))).then(lists => {
+      if (!alive) return;
+      const nat = naturalDate(lists, normKey(name), y);
+      if (!nat){ setRes(null); return; }
+      const diff = Math.round((nat - d) / 86400000);
+      const nw = nat.getDay();
+      if (diff === 0 || Math.abs(diff) > 3 || (nw !== 0 && nw !== 6)){ setRes(null); return; }
+      setRes({ natural: nat });
+    });
+    return () => { alive = false; };
+  }, [date, code, name, active]);
+  return res;
+}
+
 function monthGrid(focus){
   const first = new Date(focus.getFullYear(), focus.getMonth(), 1);
   const start = startOfWeek(first);
@@ -1476,10 +1581,21 @@ function App(){
   const [selected, setSelected] = useState([]);
   const [favorites, setFavorites] = useState(() => {
     try {
-      const raw = localStorage.getItem('jf-favorites');
+      const raw = localStorage.getItem(LS_FAV);
       return raw ? new Set(JSON.parse(raw)) : new Set();
     } catch (e) { return new Set(); }
   });
+  /* Favoris issus du choix de la langue. Un favori absent de cet ensemble a
+     été posé à la main et survit aux changements de langue. Les favoris
+     antérieurs à cette distinction sont donc traités comme manuels : rien
+     de ce que l'utilisateur avait étoilé ne disparaît. */
+  const [autoFav, setAutoFav] = useState(() => {
+    try {
+      const raw = localStorage.getItem(LS_FAV_AUTO);
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch (e) { return new Set(); }
+  });
+  const autoFavRef = useRef(autoFav);
   const [view, setView]   = useState('month');
   const [focus, setFocus] = useState(new Date());
   const [query, setQuery] = useState('');
@@ -1554,7 +1670,13 @@ function App(){
     didInit.current = lang;
     const code = LANG_COUNTRY[lang];
     if (!code) return;
-    setFavorites(prev => prev.has(code) ? prev : new Set([...prev, code]));
+    setFavorites(prev => {
+      const next = new Set(prev);
+      autoFavRef.current.forEach(c => { if (c !== code) next.delete(c); });
+      next.add(code);
+      return next;
+    });
+    setAutoFav(new Set([code]));
     setSelected(s => {
       if (s.some(c => c.code === code)) return s;
       const used = new Set(s.map(x => x.color));
@@ -1614,10 +1736,22 @@ function App(){
       next.has(code) ? next.delete(code) : next.add(code);
       return next;
     });
+    /* un passage par l'étoile rend le favori manuel : il ne sera plus
+       retiré au changement de langue */
+    setAutoFav(prev => {
+      if (!prev.has(code)) return prev;
+      const next = new Set(prev);
+      next.delete(code);
+      return next;
+    });
   };
   useEffect(() => {
-    try { localStorage.setItem('jf-favorites', JSON.stringify([...favorites])); } catch (e) {}
+    try { localStorage.setItem(LS_FAV, JSON.stringify([...favorites])); } catch (e) {}
   }, [favorites]);
+  useEffect(() => {
+    autoFavRef.current = autoFav;
+    try { localStorage.setItem(LS_FAV_AUTO, JSON.stringify([...autoFav])); } catch (e) {}
+  }, [autoFav]);
   const byFavFirst = (a, b) => {
     const fa = favorites.has(a.code), fb = favorites.has(b.code);
     return fa===fb ? 0 : fa ? -1 : 1;
@@ -1809,10 +1943,11 @@ function verdict(date, index, selected){
 /* Carte détaillée d'un jour férié : nom dans la langue choisie, nom local
    quand il diffère, et lien Wikipédia suivant la même cascade. */
 function HolidayCard({ hit }){
-  const { t, lang, name, country } = useI18n();
+  const { t, lang, name, country, fmt } = useI18n();
   const h = hit.h;
   const base = name(h);
   const wiki = useWiki(h, lang, true);
+  const shift = useObserved(h, true);
   /* si la cascade est retombée sur l'anglais et que Wikipédia connaît un
      titre dans la langue choisie, il devient le nom affiché */
   const display = (base.tier !== 'target' && wiki && wiki.tier === 'target')
@@ -1830,9 +1965,16 @@ function HolidayCard({ hit }){
         <div className="nm">{display}
           {h.global ? <span className="jf-badge">{t.national}</span>
                     : <span className="jf-badge reg">{t.regional}</span>}
+          {shift && <span className="jf-badge shift">{t.observed}</span>}
         </div>
         {showEn && <div className="en">{h.name}</div>}
         {showLocal && <div className="en"><span className="lbl">{t.localNameLbl}</span> {h.localName}</div>}
+        {shift && (
+          <p className="jf-obs">
+            <Info size={13}/>
+            <span>{t.observedNote(fmt(shift.natural, { weekday:'long', day:'numeric', month:'long' }))}</span>
+          </p>
+        )}
         {link && (
           <a className="jf-wiki" href={link.url} target="_blank" rel="noopener noreferrer">
             {link.label} <ExternalLink size={12}/>
