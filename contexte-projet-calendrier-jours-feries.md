@@ -39,14 +39,58 @@ date donnée, pour planifier des livraisons sans mauvaise surprise.
 - Vue Mois/Année : pastilles colorées uniquement (pas de texte), détail au clic
   dans un panneau latéral (drawer)
 - Vue Jour : "verdict" textuel du type *"2 pays fériés sur 4 affichés"*
-- Case du jour actuel : fond vert très clair (`--today-bg: #E9F6EC`)
-- Case d'un jour férié : fond rouge très clair (`--holiday-bg: #FBEAEA`)
+- Case du jour actuel : fond vert très clair (`--today-bg`), numéro sur pastille d'accent
+- Case d'un jour férié : fond rouge très clair (`--holiday-bg`)
   (le vert "aujourd'hui" prend le pas visuellement si les deux coïncident)
 - Sélection de pays en colonne de gauche : recherche, coche, suppression rapide
 - **Favoris** : étoile sur chaque pays, persistée en `localStorage`
   (clé `jf-favorites`), fait remonter le pays en tête de liste
-- **Sélecteur de langue** dans l'en-tête, à droite de la navigation
-- Sélection par défaut au premier chargement : France uniquement (`['FR']`)
+- **Sélecteur de langue** dans l'en-tête : menu sur mesure, pas un `<select>`.
+  Un select natif ne peut pas porter d'image et Windows ne dispose d'aucune
+  police d'emojis drapeaux (`🇫🇷` s'y affiche « FR ») — d'où un bouton + menu en
+  `position: fixed`, avec les drapeaux `flagcdn` et fermeture au clic extérieur
+  et à Échap. Les six drapeaux sont préchargés au montage, sinon le menu
+  s'ouvre sur des carrés vides.
+- **Sélection par défaut : le pays de référence de la langue active**
+  (`LANG_COUNTRY` : fr→FR, en→GB, es→ES, de→DE, it→IT, pt→PT), mis en favori
+  *et* sélectionné. Remplace l'ancienne sélection `['FR']` codée en dur. Un
+  garde par référence n'applique la règle qu'au changement de langue, pour que
+  le retrait manuel du pays ne soit pas annulé au rendu suivant.
+
+## Thèmes (déployés le 2026-09-16, commit `773ee19`)
+Trois états : **système**, **clair**, **sombre**, mémorisés en `localStorage`
+(clé `jf-theme`). L'état « système » *retire* l'attribut `data-theme` pour
+laisser `prefers-color-scheme` décider ; les deux autres le posent sur `<html>`.
+Le thème sombre a donc deux déclencheurs — une media query et l'attribut — dont
+les blocs de jetons sont volontairement dupliqués : les factoriser ferait
+prendre le pas à l'un des deux au mauvais moment.
+
+**Toutes les couleurs passent par des jetons CSS sur `:root`.** C'était le
+préalable au mode sombre : une douzaine de valeurs étaient codées en dur hors
+de `.jf` (cellules hors mois, bandeau d'erreur, ombre du volet latéral, liseré
+des drapeaux, anneau des pastilles). Ne pas réintroduire de couleur littérale
+ailleurs que dans les blocs de jetons — seule exception légitime : `PALETTE`,
+qui est de la donnée (l'identité colorée d'un pays), pas du thème.
+
+**Rôles texte et bordure séparés.** L'ancienne variable `--faint` servait à la
+fois de couleur de bordure et de couleur de texte (placeholder de recherche,
+libellés de section, codes pays) à **2,6:1 sur blanc**, sous le seuil de 4,5:1.
+Il y a maintenant `--text-3` pour le texte et `--glyph` pour les traits et
+icônes. Contrastes mesurés après correction : texte 14,3:1, secondaire 7,5:1,
+tertiaire 5,7:1, placeholder sur champ 5,1:1, accent 8,6:1, blanc sur accent
+5,65:1. **Ne jamais utiliser `--glyph` pour du texte.**
+
+## Adaptation aux écrans
+Points de rupture : 1180 (année sur 3 colonnes), 980 (sous-titre masqué),
+880 (colonne latérale en tiroir), 720 (téléphone), 520 (année sur 1 colonne),
+plus un bloc `pointer: coarse` qui agrandit les cibles tactiles.
+
+À 375 px, l'en-tête fait **132 px** de haut (contre ~350 avant réorganisation)
+et la grille occupe le reste (778 px sur 812). Deux arbitrages qui l'expliquent,
+à ne pas défaire sans mesurer : le libellé de langue cède la place au seul
+drapeau, et le groupe de trois boutons de thème devient **un bouton cyclique**
+(`.jf-themecycle`) — sinon la sélection de vue partait à la ligne. Le volet
+latéral passe en plein écran et la vue Semaine en colonne unique.
 
 ## Internationalisation (déployée le 2026-09-15, commit `d333008`)
 Six langues : `fr`, `en`, `es`, `de`, `it`, `pt`. Langue mémorisée en
@@ -73,7 +117,7 @@ luxembourgeois, et l'Afrique francophone (SN, CI, ML, CM, GA) en anglais. Les
 inscrire dans la liste `fr` afficherait la mauvaise langue. Ne pas « compléter »
 cette table sans vérifier pays par pays ce que renvoie réellement l'API.
 
-**Clés `localStorage` utilisées** : `jf-favorites`, `jf-lang`, `jf-wiki`.
+**Clés `localStorage` utilisées** : `jf-favorites`, `jf-lang`, `jf-wiki`, `jf-theme`.
 
 ## Bugs déjà rencontrés et corrigés (ne pas les réintroduire)
 
@@ -90,6 +134,19 @@ cette table sans vérifier pays par pays ce que renvoie réellement l'API.
    (inerte). Un petit script de bootstrap le récupère et le transforme
    explicitement avec `Babel.transform(src, { presets: [['react', { runtime: 'classic' }]] })`
    avant de l'injecter et l'exécuter. **Ne pas revenir à `data-presets="react"` seul.**
+
+3. **Nom du pays sélectionné vide dans toutes les vues.**
+   `i18n.country()` cherchait un champ `label` dans l'état `countries`, alors
+   que ce champ n'est calculé que dans le mémo `localized`. La fonction
+   renvoyait `undefined` : le nom disparaissait des lignes sélectionnées du
+   volet, des cartes de jours fériés, de la vue Semaine et des pastilles
+   « Ouvrés » — sans aucune erreur console. Leçon : deux structures dérivées
+   du même état n'ont pas les mêmes champs, vérifier laquelle on interroge.
+
+4. **Liseré coloré de 3 px** sur les cartes de la vue Semaine : remplacé par
+   une pastille, cohérente avec les vues Mois et Année. Le détecteur de la
+   skill de design le signale comme marqueur d'interface générée, et la règle
+   plafonne ce type de bordure à 1 px.
 
 ## Comportement qui ressemble à un bug mais n'en est pas un
 Le 4 juillet 2026 (Independence Day, US) tombe un samedi. La règle fédérale
@@ -120,11 +177,15 @@ distinguer visuellement ces cas.
 
 ## Fichier de référence
 La dernière version fonctionnelle complète est celle déployée sur GitHub Pages
-à l'URL ci-dessus (`index.html`, ~1 360 lignes, HTML+CSS+JS en un seul fichier).
+à l'URL ci-dessus (`index.html`, ~1 930 lignes, HTML+CSS+JS en un seul fichier).
 
-## Chantier en cours
-Lot 2 des évolutions demandées, pas encore construit : **dark mode** et **refonte
-visuelle** (épuré, moderne, lisible). Préalable identifié : une douzaine de
-couleurs sont encore codées en dur hors des variables CSS de `.jf` (`#FAFBFC` des
-cellules hors mois, couleurs du bandeau d'erreur `.jf-banner`) — à tokeniser avant
-d'ajouter un thème sombre.
+## Reste à faire
+Aucun chantier en cours. Idées évoquées, jamais construites : export `.ics`,
+bouton « prochain jour ouvré commun », ponts via l'endpoint `LongWeekend`,
+badge « Reporté » pour les jours fériés décalés, persistance de la sélection de
+pays entre sessions.
+
+Deux relectures qui demandent un œil humain : les libellés d'interface en
+es/de/it/pt, écrits sans relecture native, et les noms de jours fériés qui
+restent en anglais sur les pays réellement utilisés — chaque ajout au
+dictionnaire `HOL_RAW` est ciblé et rapide.
