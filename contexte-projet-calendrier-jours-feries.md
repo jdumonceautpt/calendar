@@ -146,27 +146,33 @@ luxembourgeois, et l'Afrique francophone (SN, CI, ML, CM, GA) en anglais. Les
 inscrire dans la liste `fr` afficherait la mauvaise langue. Ne pas « compléter »
 cette table sans vérifier pays par pays ce que renvoie réellement l'API.
 
-**Le pays de la langue suit la langue.** Le pays de référence de la langue
-active est le pays par défaut : il est **sélectionné et mis en favori** au choix
-de la langue, et il sort des deux au changement de langue.
+**La langue coche son pays, elle ne l'étoile jamais.** Les favoris
+n'appartiennent qu'à l'utilisateur : aucun mécanisme automatique n'y touche.
 
-`jf-favorites` contient tous les favoris, `jf-favorites-auto` uniquement les pays
-ajoutés automatiquement par la langue. Seuls ces derniers sont retirés lors d'une
-bascule. **Toute action de l'utilisateur sur un pays le sort de l'ensemble
-automatique** — l'étoile comme la case à cocher, dans les deux sens : à partir de
-là il est géré à la main et aucun changement de langue ne le retirera, qu'il soit
-sélectionné ou non.
+`jf-auto-select` retient les pays cochés *par la langue*, et eux seuls sont
+décochés lors d'une bascule. **Toute action de l'utilisateur sur un pays le sort
+de cet ensemble** — l'étoile comme la case à cocher, dans les deux sens : à
+partir de là il reste en place quelle que soit la langue, coché ou non.
 
-Garde-fou à ne pas retirer : un pays **déjà étoilé à la main ne redevient pas
-automatique** quand on passe dans sa langue (variable `dejaManuel`). Sans lui,
-étoiler l'Espagne, passer en espagnol puis en allemand la retirait, alors qu'elle
-avait été choisie explicitement.
+Garde-fou à ne pas retirer : un pays **déjà étoilé ou coché à la main ne devient
+pas automatique** quand on passe dans sa langue (variable `dejaManuel`). Sans
+lui, étoiler l'Espagne, passer en espagnol puis en allemand la décochait, alors
+qu'elle avait été choisie explicitement.
 
-Les favoris antérieurs à cette distinction sont traités comme manuels, pour ne
-rien faire disparaître.
+Comportement attendu, vérifié : avec France, Pologne et Espagne étoilées et
+cochées, passer en espagnol, en anglais puis en italien laisse les trois cochées
+et favorites à chaque étape ; le pays de la nouvelle langue s'ajoute, celui de
+l'ancienne ne se décoche que s'il n'avait été posé que par la langue.
 
-**Clés `localStorage` utilisées** : `jf-favorites`, `jf-favorites-auto`,
-`jf-lang`, `jf-wiki`, `jf-theme`.
+**Migration au démarrage** (`readFavorites`) : une version antérieure étoilait
+d'office le pays de la langue et notait ces codes dans `jf-favorites-auto`. Au
+premier chargement, ces favoris sont retirés et l'ancienne clé supprimée, sinon
+des étoiles non désirées survivaient. Ne pas retirer ce code sans être certain
+que plus aucun navigateur ne porte l'ancienne clé.
+
+**Clés `localStorage` utilisées** : `jf-favorites`, `jf-auto-select`,
+`jf-lang`, `jf-wiki`, `jf-theme`. Ancienne clé migrée puis supprimée :
+`jf-favorites-auto`.
 
 ## Bugs déjà rencontrés et corrigés (ne pas les réintroduire)
 
@@ -247,6 +253,10 @@ distinguer visuellement ces cas.
   vides ni inventés. Pour améliorer la couverture : ajouter des entrées à
   `HOL_RAW`, c'est le seul levier fiable.
 - Les favoris sont locaux au navigateur/appareil (pas de synchronisation compte).
+- La **sélection** de pays n'étant pas persistée, seuls les pays de la langue
+  sont cochés au démarrage d'une session : le scénario « mes trois favoris
+  restent cochés » ne vaut qu'à l'intérieur d'une session. Persister la
+  sélection lèverait cette limite.
 - La sélection de pays elle-même (hors favoris) n'est pas persistée entre sessions.
 - Le fichier dépend de plusieurs domaines externes (unpkg.com ×3, flagcdn.com,
   fonts.googleapis.com, date.nager.at, en.wikipedia.org) — à surveiller si déployé
